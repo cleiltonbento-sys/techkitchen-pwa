@@ -126,6 +126,26 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     margin: -8px 0 14px;
   }
 
+  .modal-wide { max-width: 900px; width: 95vw; }
+  .companies-layout { display: flex; gap: 16px; min-height: 420px; max-height: 60vh; }
+  .companies-list { width: 240px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--border); padding-right: 12px; }
+  .company-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; font-size: 13.5px; }
+  .company-item:hover { background: var(--surface2); }
+  .company-item.active { background: var(--surface2); border-left: 3px solid var(--accent); }
+  .company-item .cnpj { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .companies-detail { flex: 1; overflow-y: auto; }
+  .empty-hint { color: var(--muted); font-size: 13px; padding: 40px 0; text-align: center; }
+  .company-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .company-tab-btn { padding: 8px 14px; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+  .company-tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent); }
+  .unit-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .unit-card h4 { font-size: 13.5px; margin-bottom: 4px; }
+  .unit-card .meta { font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+  .sector-chip { display: inline-block; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 3px 10px; font-size: 11px; margin: 4px 4px 0 0; color: var(--text); }
+  .mini-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .mini-form input { flex: 1; min-width: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; color: var(--text); font-size: 12.5px; }
+  .company-equip-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -607,6 +627,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     TechKitchen <span>/ Banco de Peças</span>
   </div>
   <div class="header-actions">
+    <button class="btn btn-ghost btn-sm" onclick="openCompanies()">🏢 Empresas</button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('modalEquip')">+ Equipamento</button>
     <button class="btn btn-primary btn-sm" onclick="openModal('modalPart')">+ Peça</button>
   </div>
@@ -728,6 +749,25 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   </main>
 </div>
 
+<!-- MODAL: Empresas -->
+<div class="modal-overlay" id="modalCompanies">
+  <div class="modal modal-wide">
+    <h2>🏢 Empresas</h2>
+    <div class="companies-layout">
+      <div class="companies-list">
+        <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:10px;" onclick="showNewCompanyForm()">+ Nova Empresa</button>
+        <div id="companyListEl"></div>
+      </div>
+      <div class="companies-detail" id="companyDetailEl">
+        <div class="empty-hint">Selecione uma empresa à esquerda, ou cadastre uma nova.</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalCompanies')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Novo Equipamento -->
 <div class="modal-overlay" id="modalEquip">
   <div class="modal">
@@ -771,6 +811,24 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
           <option value="220V" selected>220V</option>
           <option value="380V">380V</option>
           <option value="Bivolt">Bivolt</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Empresa Proprietária <span style="font-weight:400;color:var(--muted);font-size:11px;">(opcional)</span></label>
+        <select id="newEquipCompany" onchange="onEquipCompanyChange()">
+          <option value="">— Não vinculado —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Unidade</label>
+        <select id="newEquipUnit" onchange="onEquipUnitChange()">
+          <option value="">—</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Setor</label>
+        <select id="newEquipSector">
+          <option value="">—</option>
         </select>
       </div>
       <div class="form-group full">
@@ -906,7 +964,7 @@ function loadDB() {
     const raw = localStorage.getItem('techkitchen_db');
     if (raw) return JSON.parse(raw);
   } catch(e) {}
-  return { equipment: [], parts: [], diagnostics: [] };
+  return { equipment: [], parts: [], diagnostics: [], companies: [] };
 }
 
 function saveDB() {
@@ -914,6 +972,7 @@ function saveDB() {
 }
 
 let db = loadDB();
+if (!db.companies) db.companies = [];
 
 // Seed sample data if empty
 if (db.equipment.length === 0 || db.equipment.length < 5) {
@@ -1828,6 +1887,234 @@ function searchPartByCode(code) {
 // ============================================================
 // MODALS
 // ============================================================
+// ============================================================
+// EMPRESAS
+// ============================================================
+let currentCompanyId = null;
+let currentCompanyTab = 'dados';
+
+function openCompanies() {
+  currentCompanyId = null;
+  renderCompanyList();
+  document.getElementById('companyDetailEl').innerHTML = '<div class="empty-hint">Selecione uma empresa à esquerda, ou cadastre uma nova.</div>';
+  document.getElementById('modalCompanies').classList.add('open');
+}
+
+function renderCompanyList() {
+  const el = document.getElementById('companyListEl');
+  if (db.companies.length === 0) {
+    el.innerHTML = '<div class="empty-hint" style="padding:20px 0;">Nenhuma empresa cadastrada.</div>';
+    return;
+  }
+  el.innerHTML = db.companies.map(c => `
+    <div class="company-item ${c.id===currentCompanyId?'active':''}" onclick="selectCompany('${c.id}')">
+      <div>${c.name}</div>
+      <div class="cnpj">${c.cnpj || 'CNPJ não informado'}</div>
+    </div>
+  `).join('');
+}
+
+function showNewCompanyForm() {
+  currentCompanyId = null;
+  renderCompanyList();
+  document.getElementById('companyDetailEl').innerHTML = `
+    <h3 style="margin-bottom:10px;">Nova Empresa</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Razão Social</label><input type="text" id="newCoName" placeholder="Ex: Mira Bela Comércio e Conveniência"></div>
+      <div class="form-group"><label>CNPJ</label><input type="text" id="newCoCnpj" placeholder="00.000.000/0000-00"></div>
+      <div class="form-group"><label>Responsável</label><input type="text" id="newCoResp" placeholder="Nome do responsável"></div>
+      <div class="form-group"><label>Contato</label><input type="text" id="newCoContact" placeholder="Telefone / e-mail"></div>
+    </div>
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button class="btn btn-primary" onclick="saveNewCompany()">Salvar Empresa</button>
+    </div>
+  `;
+}
+
+function saveNewCompany() {
+  const name = document.getElementById('newCoName').value.trim();
+  if (!name) { showToast('Informe a razão social.', 'error'); return; }
+  const company = {
+    id: 'c' + Date.now(),
+    name,
+    cnpj: document.getElementById('newCoCnpj').value.trim(),
+    responsible: document.getElementById('newCoResp').value.trim(),
+    contact: document.getElementById('newCoContact').value.trim(),
+    units: [],
+  };
+  db.companies.push(company);
+  saveDB();
+  renderCompanyList();
+  selectCompany(company.id);
+  showToast('Empresa cadastrada! ✅', 'success');
+}
+
+function selectCompany(id) {
+  currentCompanyId = id;
+  currentCompanyTab = 'dados';
+  renderCompanyList();
+  renderCompanyDetail();
+}
+
+function getCurrentCompany() {
+  return db.companies.find(c => c.id === currentCompanyId);
+}
+
+function switchCompanyTab(tab) {
+  currentCompanyTab = tab;
+  renderCompanyDetail();
+}
+
+function renderCompanyDetail() {
+  const company = getCurrentCompany();
+  if (!company) return;
+  const el = document.getElementById('companyDetailEl');
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h3>${company.name}</h3>
+      <button class="btn btn-ghost btn-sm" onclick="exportCompanyCSV('${company.id}')">⬇ Exportar CSV</button>
+    </div>
+    <div class="company-tabs">
+      <div class="company-tab-btn ${currentCompanyTab==='dados'?'active':''}" onclick="switchCompanyTab('dados')">Dados Gerais</div>
+      <div class="company-tab-btn ${currentCompanyTab==='unidades'?'active':''}" onclick="switchCompanyTab('unidades')">Unidades</div>
+      <div class="company-tab-btn ${currentCompanyTab==='equipamentos'?'active':''}" onclick="switchCompanyTab('equipamentos')">Equipamentos</div>
+    </div>
+    <div id="companyTabContent"></div>
+  `;
+  renderCompanyTabContent();
+}
+
+function renderCompanyTabContent() {
+  const company = getCurrentCompany();
+  const el = document.getElementById('companyTabContent');
+  if (currentCompanyTab === 'dados') {
+    el.innerHTML = `
+      <div class="form-grid">
+        <div class="form-group"><label>Razão Social</label><input type="text" id="editCoName" value="${company.name}"></div>
+        <div class="form-group"><label>CNPJ</label><input type="text" id="editCoCnpj" value="${company.cnpj||''}"></div>
+        <div class="form-group"><label>Responsável</label><input type="text" id="editCoResp" value="${company.responsible||''}"></div>
+        <div class="form-group"><label>Contato</label><input type="text" id="editCoContact" value="${company.contact||''}"></div>
+      </div>
+      <div class="modal-actions" style="justify-content:flex-start;">
+        <button class="btn btn-primary" onclick="saveCompanyEdits()">Salvar Alterações</button>
+      </div>
+    `;
+  } else if (currentCompanyTab === 'unidades') {
+    const units = company.units || [];
+    el.innerHTML = units.map(u => `
+      <div class="unit-card">
+        <h4>${u.name}</h4>
+        <div class="meta">
+          ${u.address ? '📍 ' + u.address + '<br>' : ''}
+          ${u.responsible ? '👤 ' + u.responsible : ''} ${u.contact ? '· ' + u.contact : ''}
+        </div>
+        <div style="margin-top:8px;">
+          ${(u.sectors||[]).map(s => `<span class="sector-chip">${s.name}</span>`).join('')}
+        </div>
+        <div class="mini-form">
+          <input type="text" id="newSector_${u.id}" placeholder="Novo setor (ex: Cozinha quente)">
+          <button class="btn btn-ghost btn-sm" onclick="addSector('${u.id}')">+ Setor</button>
+        </div>
+      </div>
+    `).join('') + `
+      <div class="unit-card" style="border-style:dashed;">
+        <h4>Nova Unidade</h4>
+        <div class="mini-form">
+          <input type="text" id="newUnitName" placeholder="Nome da unidade (ex: Matriz, Filial Centro)">
+          <input type="text" id="newUnitAddress" placeholder="Endereço">
+        </div>
+        <div class="mini-form">
+          <input type="text" id="newUnitResp" placeholder="Responsável local">
+          <input type="text" id="newUnitContact" placeholder="Contato">
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="addUnit()">+ Adicionar Unidade</button>
+      </div>
+    `;
+  } else if (currentCompanyTab === 'equipamentos') {
+    const equips = db.equipment.filter(e => e.companyId === company.id);
+    if (equips.length === 0) {
+      el.innerHTML = '<div class="empty-hint">Nenhum equipamento vinculado a esta empresa ainda.</div>';
+      return;
+    }
+    el.innerHTML = equips.map(e => {
+      const unit = (company.units||[]).find(u => u.id === e.unitId);
+      const sector = unit && (unit.sectors||[]).find(s => s.id === e.sectorId);
+      return `<div class="company-equip-row">
+        <span>${e.brand} — ${e.model}</span>
+        <span style="color:var(--muted);">${unit?unit.name:'—'}${sector?' / '+sector.name:''}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+function saveCompanyEdits() {
+  const company = getCurrentCompany();
+  company.name = document.getElementById('editCoName').value.trim();
+  company.cnpj = document.getElementById('editCoCnpj').value.trim();
+  company.responsible = document.getElementById('editCoResp').value.trim();
+  company.contact = document.getElementById('editCoContact').value.trim();
+  saveDB();
+  renderCompanyList();
+  showToast('Dados atualizados! ✅', 'success');
+}
+
+function addUnit() {
+  const name = document.getElementById('newUnitName').value.trim();
+  if (!name) { showToast('Informe o nome da unidade.', 'error'); return; }
+  const company = getCurrentCompany();
+  if (!company.units) company.units = [];
+  company.units.push({
+    id: 'u' + Date.now(),
+    name,
+    address: document.getElementById('newUnitAddress').value.trim(),
+    responsible: document.getElementById('newUnitResp').value.trim(),
+    contact: document.getElementById('newUnitContact').value.trim(),
+    sectors: [],
+  });
+  saveDB();
+  renderCompanyTabContent();
+  showToast('Unidade adicionada! ✅', 'success');
+}
+
+function addSector(unitId) {
+  const input = document.getElementById('newSector_' + unitId);
+  const name = input.value.trim();
+  if (!name) return;
+  const company = getCurrentCompany();
+  const unit = (company.units||[]).find(u => u.id === unitId);
+  if (!unit.sectors) unit.sectors = [];
+  unit.sectors.push({ id: 's' + Date.now(), name });
+  saveDB();
+  renderCompanyTabContent();
+}
+
+function exportCompanyCSV(companyId) {
+  const company = db.companies.find(c => c.id === companyId);
+  if (!company) return;
+  const equips = db.equipment.filter(e => e.companyId === companyId);
+  let rows = [['Empresa','CNPJ','Unidade','Endereço','Setor','Marca','Modelo','Tensão','Observações']];
+  if (equips.length === 0) {
+    rows.push([company.name, company.cnpj||'', '', '', '', '', '', '', '']);
+  } else {
+    equips.forEach(e => {
+      const unit = (company.units||[]).find(u => u.id === e.unitId);
+      const sector = unit && (unit.sectors||[]).find(s => s.id === e.sectorId);
+      rows.push([
+        company.name, company.cnpj||'',
+        unit?unit.name:'', unit?unit.address||'':'',
+        sector?sector.name:'',
+        e.brand, e.model, e.voltage||'', (e.obs||'').replace(/\n/g,' ')
+      ]);
+    });
+  }
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${company.name.replace(/[^a-z0-9]/gi,'_')}_equipamentos.csv`;
+  a.click();
+}
+
 function openModal(id) {
   if (id === 'modalPart' || id === 'modalDiag') {
     const sel = id === 'modalPart' ? 'newPartEquip' : 'newDiagEquip';
@@ -1837,7 +2124,35 @@ function openModal(id) {
   if (id === 'modalDiag') {
     document.getElementById('newDiagDate').value = new Date().toISOString().split('T')[0];
   }
+  if (id === 'modalEquip') {
+    const compSel = document.getElementById('newEquipCompany');
+    compSel.innerHTML = '<option value="">— Não vinculado —</option>' +
+      db.companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    document.getElementById('newEquipUnit').innerHTML = '<option value="">—</option>';
+    document.getElementById('newEquipSector').innerHTML = '<option value="">—</option>';
+  }
   document.getElementById(id).classList.add('open');
+}
+
+function onEquipCompanyChange() {
+  const companyId = document.getElementById('newEquipCompany').value;
+  const unitSel = document.getElementById('newEquipUnit');
+  const sectorSel = document.getElementById('newEquipSector');
+  sectorSel.innerHTML = '<option value="">—</option>';
+  const company = db.companies.find(c => c.id === companyId);
+  if (!company) { unitSel.innerHTML = '<option value="">—</option>'; return; }
+  unitSel.innerHTML = '<option value="">—</option>' +
+    (company.units || []).map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+}
+
+function onEquipUnitChange() {
+  const companyId = document.getElementById('newEquipCompany').value;
+  const unitId = document.getElementById('newEquipUnit').value;
+  const sectorSel = document.getElementById('newEquipSector');
+  const company = db.companies.find(c => c.id === companyId);
+  const unit = company && (company.units || []).find(u => u.id === unitId);
+  sectorSel.innerHTML = '<option value="">—</option>' +
+    (unit && unit.sectors ? unit.sectors.map(s => `<option value="${s.id}">${s.name}</option>`).join('') : '');
 }
 
 function closeModal(id) {
@@ -1976,6 +2291,9 @@ function saveEquipment() {
     brand, model,
     line: document.getElementById('newEquipLine').value.trim(),
     voltage: document.getElementById('newEquipVoltage').value,
+    companyId: document.getElementById('newEquipCompany').value || null,
+    unitId: document.getElementById('newEquipUnit').value || null,
+    sectorId: document.getElementById('newEquipSector').value || null,
     obs: document.getElementById('newEquipObs').value.trim(),
   };
   db.equipment.push(equip);
