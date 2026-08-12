@@ -1,0 +1,2185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TechKitchen">
+<meta name="application-name" content="TechKitchen">
+<meta name="theme-color" content="#f97316">
+<meta name="description" content="Banco de Peças para Equipamentos de Cozinha Profissional">
+
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(r => console.log('[TechKitchen] SW registrado', r.scope))
+      .catch(e => console.warn('[TechKitchen] SW erro:', e));
+  });
+}
+</script>
+<title>TechKitchen — Banco de Peças</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  /* ── PWA / MOBILE ───────────────────────────── */
+  * { -webkit-tap-highlight-color: transparent; }
+  html { height: -webkit-fill-available; }
+  body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+  #pwaBar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    gap: 8px;
+    position: sticky;
+    top: 60px;
+    z-index: 98;
+  }
+  #pwaBar .pwa-btn { background:#fff; color:var(--accent); border:none; border-radius:6px; padding:6px 14px; font-weight:700; font-size:13px; cursor:pointer; }
+  #pwaBar .pwa-close { background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer; line-height:1; }
+
+  @media (max-width: 700px) {
+    .layout { flex-direction: column; height: auto; min-height: calc(100vh - 60px); }
+    .sidebar { width: 100%; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+    .sidebar-brands { max-height: 150px; }
+    .main { flex: 1; min-height: 0; }
+    .content { padding: 12px; }
+    .tabs { overflow-x: auto; padding: 0 8px; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { white-space: nowrap; padding: 12px 12px; font-size: 12px; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .stat-card { padding: 10px 12px; }
+    .stat-value { font-size: 18px; }
+    .equip-header { flex-wrap: wrap; gap: 10px; }
+    .table-controls { flex-wrap: wrap; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .filter-select, .search-input, input, select, textarea { font-size: 16px !important; }
+    .modal { margin: 8px; max-height: 88vh; border-radius: 12px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    header { padding: 0 12px; }
+    .logo span { display: none; }
+    .header-actions .btn { padding: 6px 10px; font-size: 12px; }
+    td, th { padding: 8px 10px; font-size: 12px; }
+    .part-code { font-size: 11px; }
+    .actions-cell { flex-direction: row; gap: 4px; }
+    .badge { font-size: 10px; padding: 2px 6px; }
+    .diag-card { padding: 14px; }
+    .io-card { padding: 14px; }
+    .welcome { padding: 20px; }
+    .welcome-icon { font-size: 48px; }
+    #pwaBar { display: flex; }
+  }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1e2335;
+    --border: #2a2f45;
+    --accent: #f97316;
+    --accent2: #fb923c;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --success: #22c55e;
+    --warning: #eab308;
+    --danger: #ef4444;
+    --info: #3b82f6;
+  }
+
+  .plate-scan-btn {
+    display: block;
+    text-align: center;
+    background: linear-gradient(180deg, rgba(249,115,22,0.12), rgba(249,115,22,0.04));
+    border: 1.5px dashed var(--accent);
+    color: var(--accent2);
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    cursor: pointer;
+  }
+  .plate-scan-btn:active { opacity: 0.75; }
+  .plate-status {
+    font-size: 12px;
+    color: var(--muted);
+    margin: -8px 0 14px;
+    text-align: center;
+  }
+  .plate-note {
+    font-size: 12px;
+    color: var(--warning);
+    background: rgba(234,179,8,0.1);
+    border: 1px solid var(--warning);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: -8px 0 14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.3px;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .logo span { color: var(--muted); font-weight: 400; margin-left: 4px; font-size: 13px; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .btn {
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* LAYOUT */
+  .layout { display: flex; height: calc(100vh - 60px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-search {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 12px 8px 32px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-wrap { position: relative; }
+  .search-wrap::before {
+    content: '⌕';
+    position: absolute;
+    left: 10px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .sidebar-brands {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .sidebar-brands::-webkit-scrollbar { width: 4px; }
+  .sidebar-brands::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-brands::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .brand-group { margin-bottom: 2px; }
+  .brand-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+    border-radius: 6px;
+    margin: 0 6px;
+  }
+  .brand-header:hover { background: var(--surface2); }
+  .brand-header.active { background: rgba(249,115,22,0.12); }
+  .brand-logo {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: -0.5px;
+  }
+  .brand-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .brand-count {
+    background: var(--border);
+    color: var(--muted);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 11px;
+  }
+  .brand-chevron { color: var(--muted); font-size: 10px; transition: transform 0.2s; }
+  .brand-group.open .brand-chevron { transform: rotate(90deg); }
+
+  .brand-equipment { display: none; }
+  .brand-group.open .brand-equipment { display: block; }
+  .equip-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px 7px 50px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    transition: all 0.1s;
+    border-radius: 6px;
+    margin: 0 6px;
+  }
+  .equip-item:hover { background: var(--surface2); color: var(--text); }
+  .equip-item.active { color: var(--accent); background: rgba(249,115,22,0.08); }
+  .equip-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .equip-item.active .equip-dot { background: var(--accent); }
+
+  /* MAIN */
+  .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 24px;
+  }
+  .tab {
+    padding: 14px 18px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* CONTENT */
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+  .content::-webkit-scrollbar { width: 6px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* PANEL */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* WELCOME */
+  .welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    gap: 16px;
+  }
+  .welcome-icon { font-size: 64px; opacity: 0.3; }
+  .welcome h2 { font-size: 20px; font-weight: 600; color: var(--muted); }
+  .welcome p { color: var(--muted); font-size: 14px; max-width: 360px; line-height: 1.6; }
+
+  /* EQUIPMENT HEADER */
+  .equip-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .equip-brand-badge {
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .equip-header-info { flex: 1; }
+  .equip-header-info h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .equip-header-info .meta { color: var(--muted); font-size: 13px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .meta-tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat-label { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 700; }
+  .stat-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* PARTS TABLE */
+  .table-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filter-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 7px 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    cursor: pointer;
+  }
+  .filter-select:focus { border-color: var(--accent); }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--surface2); }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .part-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    background: rgba(249,115,22,0.1);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-ok { background: rgba(34,197,94,0.15); color: var(--success); }
+  .badge-low { background: rgba(234,179,8,0.15); color: var(--warning); }
+  .badge-out { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .badge-cat { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+  .actions-cell { display: flex; gap: 6px; }
+
+  /* EXPLODED VIEW */
+  .exploded-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .exploded-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .exploded-placeholder {
+    background: var(--bg);
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 48px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .exploded-placeholder:hover { border-color: var(--accent); }
+  .exploded-placeholder .icon { font-size: 36px; opacity: 0.4; }
+  .exploded-placeholder p { color: var(--muted); font-size: 13px; }
+  .exploded-placeholder strong { color: var(--accent); }
+
+  .exploded-img-wrap {
+    position: relative;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .exploded-img-wrap img { max-width: 100%; max-height: 500px; object-fit: contain; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 580px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  input, select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* DIAGNOSE PANEL */
+  .diag-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+  .diag-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .diag-meta { color: var(--muted); font-size: 12px; margin-bottom: 10px; display: flex; gap: 12px; }
+  .diag-parts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .diag-part-tag {
+    background: rgba(249,115,22,0.1);
+    border: 1px solid rgba(249,115,22,0.2);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+  }
+  .diag-part-tag:hover { background: rgba(249,115,22,0.2); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+  }
+  .empty-state .icon { font-size: 32px; margin-bottom: 10px; opacity: 0.4; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    z-index: 9999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-left: 3px solid var(--success); }
+  .toast.error { border-left: 3px solid var(--danger); }
+
+  .section-title { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* IMPORT/EXPORT */
+  .io-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .io-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .io-card p { color: var(--muted); font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+
+  .no-select { user-select: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔧</div>
+    TechKitchen <span>/ Banco de Peças</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost btn-sm" onclick="openModal('modalEquip')">+ Equipamento</button>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modalPart')">+ Peça</button>
+  </div>
+</header>
+
+<!-- Barra PWA -->
+<div id="pwaBar">
+  <span>📲 Adicione à tela inicial para usar como app!</span>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="pwa-btn" onclick="installPWA()">Instalar</button>
+    <button class="pwa-close" onclick="document.getElementById('pwaBar').style.display='none'">✕</button>
+  </div>
+</div>
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-search">
+      <div class="search-wrap">
+        <input class="search-input" type="text" placeholder="Buscar equipamento..." id="sideSearch" oninput="filterSidebar()">
+      </div>
+    </div>
+    <div class="sidebar-brands" id="sidebarBrands"></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="tabs" id="mainTabs">
+      <div class="tab active" onclick="showTab('tabParts')">Peças</div>
+      <div class="tab" onclick="showTab('tabExploded')">Vista Explodida</div>
+      <div class="tab" onclick="showTab('tabDiag')">Diagnósticos</div>
+      <div class="tab" onclick="showTab('tabSettings')">Dados</div>
+    </div>
+
+    <div class="content" id="mainContent">
+      <!-- WELCOME -->
+      <div id="welcome" class="welcome">
+        <div class="welcome-icon">⚙️</div>
+        <h2>Selecione um equipamento</h2>
+        <p>Escolha uma marca e um modelo na barra lateral para visualizar as peças e vistas explodidas.</p>
+      </div>
+
+      <!-- PARTS TAB -->
+      <div id="tabParts" class="panel">
+        <div class="equip-header" id="equipHeader"></div>
+        <div class="stats-row" id="statsRow"></div>
+        <div class="table-controls">
+          <div class="search-wrap" style="flex:1; min-width:200px;">
+            <input class="search-input" type="text" placeholder="Buscar peça, código..." id="partSearch" oninput="filterParts()">
+          </div>
+          <select class="filter-select" id="catFilter" onchange="filterParts()">
+            <option value="">Todas as categorias</option>
+          </select>
+          <select class="filter-select" id="stockFilter" onchange="filterParts()">
+            <option value="">Todos os estoques</option>
+            <option value="ok">Em estoque</option>
+            <option value="low">Estoque baixo</option>
+            <option value="out">Sem estoque</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código Original</th>
+                <th>Descrição da Peça</th>
+                <th>Categoria</th>
+                <th>Ref. Vista</th>
+                <th>Estoque</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="partsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- EXPLODED TAB -->
+      <div id="tabExploded" class="panel">
+        <div class="exploded-section">
+          <h3>📐 Vista Explodida</h3>
+          <div id="explodedArea"></div>
+        </div>
+        <div class="exploded-section" id="explodedPartsList">
+          <h3>🗂 Legenda de Peças</h3>
+          <div id="explodedLegend"></div>
+        </div>
+      </div>
+
+      <!-- DIAG TAB -->
+      <div id="tabDiag" class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div class="section-title" style="margin:0">Diagnósticos Registrados</div>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modalDiag')">+ Novo Diagnóstico</button>
+        </div>
+        <div id="diagList"></div>
+      </div>
+
+      <!-- SETTINGS TAB -->
+      <div id="tabSettings" class="panel">
+        <div class="section-title">Importar / Exportar</div>
+        <div class="io-card">
+          <h3>📤 Exportar Banco de Dados</h3>
+          <p>Exporte todos os dados (equipamentos, peças, diagnósticos) em formato JSON. Ideal para backup ou transferência.</p>
+          <button class="btn btn-ghost" onclick="exportData()">Exportar JSON</button>
+        </div>
+        <div class="io-card">
+          <h3>📥 Importar Dados</h3>
+          <p>Importe um arquivo JSON exportado anteriormente. <strong style="color:var(--warning)">Atenção: isso substituirá os dados atuais.</strong></p>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+          <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">Importar JSON</button>
+        </div>
+        <div class="io-card">
+          <h3>🗑 Limpar Dados de Teste</h3>
+          <p>Remove todos os dados e reinicia o banco. Use com cuidado.</p>
+          <button class="btn btn-danger btn-sm" onclick="clearAll()">Limpar Tudo</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: Novo Equipamento -->
+<div class="modal-overlay" id="modalEquip">
+  <div class="modal">
+    <h2>➕ Novo Equipamento</h2>
+
+    <label id="plateUploadLabel" for="plateFileInput" class="plate-scan-btn">
+      📷 Ler plaqueta e preencher automaticamente
+    </label>
+    <input type="file" id="plateFileInput" accept="image/*" style="display:none;">
+    <div id="plateStatus" class="plate-status" style="display:none;"></div>
+    <div id="plateNote" class="plate-note" style="display:none;"></div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Marca</label>
+        <select id="newEquipBrand">
+          <option value="Macom/Hoshizaki">Macom/Hoshizaki</option>
+          <option value="Rational">Rational</option>
+          <option value="Unox">Unox</option>
+          <option value="Pratica/Klimaquip">Pratica/Klimaquip</option>
+          <option value="Turbochef">Turbochef</option>
+          <option value="Menumaster">Menumaster</option>
+          <option value="Tramontina">Tramontina</option>
+          <option value="ITW/Hobart">ITW/Hobart</option>
+          <option value="Vulcan">Vulcan</option>
+          <option value="Wictory">Wictory</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Modelo</label>
+        <input type="text" id="newEquipModel" placeholder="Ex: iCombi Pro 10-1/1">
+      </div>
+      <div class="form-group">
+        <label>Linha / Categoria</label>
+        <input type="text" id="newEquipLine" placeholder="Ex: Forno Combinado, Máquina de Gelo...">
+      </div>
+      <div class="form-group">
+        <label>Tensão</label>
+        <select id="newEquipVoltage">
+          <option value="110V">110V</option>
+          <option value="220V" selected>220V</option>
+          <option value="380V">380V</option>
+          <option value="Bivolt">Bivolt</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Observações</label>
+        <textarea id="newEquipObs" placeholder="Informações adicionais do equipamento..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalEquip')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEquipment()">Salvar Equipamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Nova Peça -->
+<div class="modal-overlay" id="modalPart">
+  <div class="modal">
+    <h2>🔩 Nova Peça</h2>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Equipamento</label>
+        <select id="newPartEquip" onchange="updatePartEquipInfo()"></select>
+      </div>
+      <div class="form-group">
+        <label>Código Original</label>
+        <input type="text" id="newPartCode" placeholder="Ex: 2M-01453A">
+      </div>
+      <div class="form-group">
+        <label>Referência na Vista</label>
+        <input type="text" id="newPartRef" placeholder="Ex: 12, A3, POS-7">
+      </div>
+      <div class="form-group full">
+        <label>Descrição da Peça</label>
+        <input type="text" id="newPartDesc" placeholder="Ex: Resistência de Aquecimento Superior">
+      </div>
+      <div class="form-group">
+        <label>Categoria</label>
+        <input type="text" id="newPartCat" placeholder="Ex: Elétrico, Mecânico...">
+        <select id="newPartCatSel" onchange="this.previousElementSibling.value=this.value; this.value=''">
+          <option value="">— ou escolha —</option>
+          <option>Resistência</option>
+          <option>Motor</option>
+          <option>Vedação / Gaxeta</option>
+          <option>Eletrônica</option>
+          <option>Compressor</option>
+          <option>Ventilação</option>
+          <option>Hidráulico</option>
+          <option>Mecânico</option>
+          <option>Ignição / Queimador</option>
+          <option>Estrutura</option>
+          <option>Sensor / Termostato</option>
+          <option>Painel</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Estoque</label>
+        <select id="newPartStock">
+          <option value="ok">Em estoque</option>
+          <option value="low">Estoque baixo</option>
+          <option value="out">Sem estoque</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Observações / Onde fica</label>
+        <textarea id="newPartObs" placeholder="Localização no equipamento, notas de instalação..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalPart')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePart()">Salvar Peça</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Diagnóstico -->
+<div class="modal-overlay" id="modalDiag">
+  <div class="modal">
+    <h2>🔍 Novo Diagnóstico</h2>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Equipamento</label>
+        <select id="newDiagEquip"></select>
+      </div>
+      <div class="form-group">
+        <label>Técnico</label>
+        <input type="text" id="newDiagTech" placeholder="Nome do técnico">
+      </div>
+      <div class="form-group">
+        <label>Data</label>
+        <input type="date" id="newDiagDate">
+      </div>
+      <div class="form-group full">
+        <label>Defeito / Sintoma</label>
+        <textarea id="newDiagSymptom" placeholder="Descreva o defeito ou sintoma observado..."></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Diagnóstico</label>
+        <textarea id="newDiagDesc" placeholder="Causa identificada e solução aplicada..."></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Peças Utilizadas (códigos separados por vírgula)</label>
+        <input type="text" id="newDiagParts" placeholder="Ex: 2M-01453A, RAT-B2345, ...">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalDiag')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveDiag()">Salvar Diagnóstico</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// DATA LAYER
+// ============================================================
+const BRANDS = [
+  { id: 'macom', name: 'Macom/Hoshizaki', color: '#1e40af', bg: '#1d4ed8', abbr: 'MH' },
+  { id: 'rational', name: 'Rational', color: '#7c3aed', bg: '#7c3aed', abbr: 'RA' },
+  { id: 'unox', name: 'Unox', color: '#0891b2', bg: '#0891b2', abbr: 'UX' },
+  { id: 'pratica', name: 'Pratica/Klimaquip', color: '#059669', bg: '#059669', abbr: 'PK' },
+  { id: 'turbochef', name: 'Turbochef', color: '#dc2626', bg: '#dc2626', abbr: 'TC' },
+  { id: 'menumaster', name: 'Menumaster', color: '#d97706', bg: '#d97706', abbr: 'MM' },
+  { id: 'tramontina', name: 'Tramontina', color: '#6d28d9', bg: '#6d28d9', abbr: 'TR' },
+  { id: 'itw', name: 'ITW/Hobart', color: '#0f766e', bg: '#0f766e', abbr: 'IH' },
+  { id: 'vulcan', name: 'Vulcan', color: '#b45309', bg: '#b45309', abbr: 'VU' },
+];
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem('techkitchen_db');
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return { equipment: [], parts: [], diagnostics: [] };
+}
+
+function saveDB() {
+  localStorage.setItem('techkitchen_db', JSON.stringify(db));
+}
+
+let db = loadDB();
+
+// Seed sample data if empty
+if (db.equipment.length === 0 || db.equipment.length < 5) {
+  db.equipment = [
+    {
+      id: 'e_ec050', brand: 'Macom/Hoshizaki', model: 'EC050 (ECG/ECS/ECM050A/W)',
+      line: 'Máquina de Gelo', voltage: '220V',
+      obs: 'Modelos: ECG050A, ECS050A, ECM050A, ECG050W, ECS050W, ECM050W. Fonte: Parts List EC50 Rev 11/09'
+    },
+  ];
+  db.parts = [
+    // ── CAIXA DE CONTROLE ──────────────────────────────────────
+    { id: 'p001', equipId: 'e_ec050', code: '20-0664-9',  ref: '1',  desc: 'Timer Mecânico (até SN 061252906)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Substituído pelo SCR Timer após SN 061252906' },
+    { id: 'p002', equipId: 'e_ec050', code: '040000879',  ref: '1',  desc: 'Timer SCR (após SN 061252906)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Versão atualizada do timer mecânico' },
+    { id: 'p003', equipId: 'e_ec050', code: '20-0883-3',  ref: '2',  desc: 'Termostato do Evaporador', cat: 'Sensor / Termostato', stock: 'out', obs: 'Caixa de controle' },
+    { id: 'p004', equipId: 'e_ec050', code: '20-0914-9',  ref: '3',  desc: 'Termostato do Bin (Reservatório)', cat: 'Sensor / Termostato', stock: 'out', obs: 'Controla nível de gelo no bin' },
+    { id: 'p005', equipId: 'e_ec050', code: '20-0670-9',  ref: '4',  desc: 'Chave Gangorra (Toggle Switch)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Chave liga/desliga' },
+    { id: 'p006', equipId: 'e_ec050', code: '605599-9',   ref: '5',  desc: 'Tampa da Caixa de Controle', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p007', equipId: 'e_ec050', code: '50-0443-9',  ref: '6',  desc: 'Parafuso 7 x 30 mm', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p008', equipId: 'e_ec050', code: '50-0449-9',  ref: '7',  desc: 'Parafuso (fixação caixa controle/tampa ao gabinete)', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p009', equipId: 'e_ec050', code: '000001181',  ref: '8',  desc: 'Chicote Elétrico Principal (Wiring Harness Main)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'p010', equipId: 'e_ec050', code: '20-0977-3',  ref: '9',  desc: 'Chicote Elétrico da Chave Gangorra', cat: 'Elétrico', stock: 'out', obs: '' },
+
+    // ── CONJUNTO EVAPORADOR ────────────────────────────────────
+    { id: 'p011', equipId: 'e_ec050', code: '76-0234-3',  ref: '1',  desc: 'Conjunto Evaporador — Grande (Large)', cat: 'Refrigeração', stock: 'out', obs: 'Selecionar conforme modelo' },
+    { id: 'p012', equipId: 'e_ec050', code: '76-0235-3',  ref: '1',  desc: 'Conjunto Evaporador — Standard', cat: 'Refrigeração', stock: 'out', obs: 'Selecionar conforme modelo' },
+    { id: 'p013', equipId: 'e_ec050', code: '76-0236-3',  ref: '1',  desc: 'Conjunto Evaporador — Mini', cat: 'Refrigeração', stock: 'out', obs: 'Selecionar conforme modelo' },
+    { id: 'p014', equipId: 'e_ec050', code: '76-0237-3',  ref: '2',  desc: 'Conjunto Barra de Spray (Spray Bar Assembly)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p015', equipId: 'e_ec050', code: '40-0877-9',  ref: '2a', desc: 'Inserto da Barra de Spray (cada)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p016', equipId: 'e_ec050', code: '40-0876-9',  ref: '2b', desc: 'Tampa da Barra de Spray (cada)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p017', equipId: 'e_ec050', code: '50-0463-9',  ref: '2c', desc: 'O-ring da Barra de Spray', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+    { id: 'p018', equipId: 'e_ec050', code: '40-1103-9',  ref: '3',  desc: 'Rampa de Gelo (Ice Ramp)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p019', equipId: 'e_ec050', code: '40-1020-1',  ref: '4',  desc: 'Conjunto Carcaça do Evaporador', cat: 'Estrutura', stock: 'out', obs: 'Não ilustrado no diagrama' },
+    { id: 'p020', equipId: 'e_ec050', code: '40-1037-9',  ref: '5a', desc: 'Tubo Vertical (Standpipe)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p021', equipId: 'e_ec050', code: '40-1036-9',  ref: '5b', desc: 'Plug do Tubo Vertical', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p022', equipId: 'e_ec050', code: '40-1258-9',  ref: '6a', desc: 'Pá da Cortina — Paddle (cada; usa 12 por máquina)', cat: 'Estrutura', stock: 'out', obs: '12 unidades por máquina' },
+    { id: 'p023', equipId: 'e_ec050', code: '30-0455-9',  ref: '6b', desc: 'Haste da Cortina (Rod)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p024', equipId: 'e_ec050', code: '40-1127-9',  ref: '6c', desc: 'Suporte da Cortina (Hanger)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p025', equipId: 'e_ec050', code: '000000943',  ref: '7',  desc: 'Tubo de Saída da Bomba d\'Água (Water Pump Out)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p026', equipId: 'e_ec050', code: '50-0508-9',  ref: '8',  desc: 'Abraçadeira da Barra de Spray', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p027', equipId: 'e_ec050', code: '60-7248-1',  ref: '9',  desc: 'Defletor de Entrada de Água (Water Inlet Diverter)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p028', equipId: 'e_ec050', code: '40-1493-9',  ref: '10', desc: 'Tela de Entrada da Bomba (Pump Inlet Screen)', cat: 'Hidráulico', stock: 'out', obs: '' },
+
+    // ── COMPARTIMENTO DE REFRIGERAÇÃO — PEÇAS COMUNS ───────────
+    { id: 'p029', equipId: 'e_ec050', code: '76-0243-3',  ref: '1a', desc: 'Compressor Danfoss 230V/50-60Hz/1F', cat: 'Compressor', stock: 'out', obs: 'Versão bifásica internacional' },
+    { id: 'p030', equipId: 'e_ec050', code: '20-0610-9',  ref: '1a', desc: 'Relé de Partida (Start Relay) — 230V Danfoss', cat: 'Elétrico', stock: 'out', obs: 'Acompanha compressor 76-0243-3' },
+    { id: 'p031', equipId: 'e_ec050', code: '20-0606-9',  ref: '1a', desc: 'Capacitor de Partida (Start Capacitor) — 230V Danfoss', cat: 'Elétrico', stock: 'out', obs: 'Acompanha compressor 76-0243-3' },
+    { id: 'p032', equipId: 'e_ec050', code: '040000165',  ref: '1b', desc: 'Compressor Danfoss 115V/60Hz/1F', cat: 'Compressor', stock: 'out', obs: 'Versão 115V' },
+    { id: 'p033', equipId: 'e_ec050', code: '82-5103-3',  ref: '1b', desc: 'Relé de Partida — 115V Danfoss', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'p034', equipId: 'e_ec050', code: '82-5102-3',  ref: '1b', desc: 'Capacitor de Partida — 115V Danfoss', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'p035', equipId: 'e_ec050', code: '76-0239-3',  ref: '2a', desc: 'Válvula de Gás Quente 230V/50-60Hz/1F', cat: 'Refrigeração', stock: 'out', obs: 'Hot Gas Valve completa' },
+    { id: 'p036', equipId: 'e_ec050', code: '000001144',  ref: '2a', desc: 'Bobina da Válvula de Gás Quente 230V (somente bobina)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p037', equipId: 'e_ec050', code: '040000226',  ref: '2b', desc: 'Válvula de Gás Quente 115V/60Hz/1F', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p038', equipId: 'e_ec050', code: '000001985',  ref: '2b', desc: 'Bobina da Válvula de Gás Quente 115V (somente bobina)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p039', equipId: 'e_ec050', code: '76-0241-3',  ref: '3',  desc: 'Trocador de Calor (Heat Exchanger)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p040', equipId: 'e_ec050', code: '82-5215-9',  ref: '4',  desc: 'Filtro Secador de Linha (Line Drier)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p041', equipId: 'e_ec050', code: '76-0242-3',  ref: '5',  desc: 'Válvula de Expansão Termostática (TXV)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p042', equipId: 'e_ec050', code: '56-5052-9',  ref: '5a', desc: 'Braçadeira da TXV', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p043', equipId: 'e_ec050', code: '40-0040-3',  ref: '6a', desc: 'Isolamento Boot da TXV', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+    { id: 'p044', equipId: 'e_ec050', code: '40-0720-3',  ref: '6b', desc: 'Isolamento Bulbo da TXV', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+    { id: 'p045', equipId: 'e_ec050', code: '040000038',  ref: '7a', desc: 'Bomba d\'Água 220V/50Hz', cat: 'Motor', stock: 'out', obs: '' },
+    { id: 'p046', equipId: 'e_ec050', code: '040000039',  ref: '7b', desc: 'Bomba d\'Água 220V/60Hz', cat: 'Motor', stock: 'out', obs: '' },
+    { id: 'p047', equipId: 'e_ec050', code: '000000658',  ref: '7c', desc: 'Bomba d\'Água 115V/60Hz', cat: 'Motor', stock: 'out', obs: '' },
+    { id: 'p048', equipId: 'e_ec050', code: '000000794',  ref: '7d', desc: 'Suporte da Bomba d\'Água (Bracket)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p049', equipId: 'e_ec050', code: '40-1116-9',  ref: '8',  desc: 'Conexão de Entrada de Água do Evaporador', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p050', equipId: 'e_ec050', code: '40-0875-9',  ref: '9',  desc: 'Bandeja de Condensado', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p051', equipId: 'e_ec050', code: '000000887',  ref: '10', desc: 'Válvula de Entrada de Água 230V/50-60Hz', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p052', equipId: 'e_ec050', code: '000000889',  ref: '10', desc: 'Válvula de Entrada de Água 115V/60Hz', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p053', equipId: 'e_ec050', code: '000000827',  ref: '10', desc: 'Protetor Mylar Shield (válvula água)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p054', equipId: 'e_ec050', code: '20-3302-3',  ref: '11', desc: 'Cabo de Alimentação 230V/50Hz/1F (exceto China)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'p055', equipId: 'e_ec050', code: '20-0839-3',  ref: '11', desc: 'Cabo de Alimentação 230V/50Hz/1F (somente China)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'p056', equipId: 'e_ec050', code: '000000335',  ref: '11', desc: 'Cabo de Alimentação 115V/60Hz/1F', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'p057', equipId: 'e_ec050', code: '20-0668-9',  ref: '12', desc: 'Bloco de Terminais (Terminal Block)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'p058', equipId: 'e_ec050', code: '000000943',  ref: '13a', desc: 'Tubo de Vinil — Bomba até Barra Spray', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p059', equipId: 'e_ec050', code: '000000942',  ref: '13b', desc: 'Tubo de Vinil — Sump até Bomba', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p060', equipId: 'e_ec050', code: '40-0902-9',  ref: '14', desc: 'Tubo de Entrada de Água 0.375" ID', cat: 'Hidráulico', stock: 'out', obs: 'Não ilustrado' },
+    { id: 'p061', equipId: 'e_ec050', code: '000000195',  ref: '15', desc: 'Tubo de Dreno do Bin', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p062', equipId: 'e_ec050', code: '50-0510-9',  ref: '16', desc: 'Abraçadeira da Linha de Dreno', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p063', equipId: 'e_ec050', code: '40-1128-9',  ref: '17', desc: 'Conector de Dreno Farpado (Drain Fitting Barbed)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p064', equipId: 'e_ec050', code: '50-0508-9',  ref: '18', desc: 'Abraçadeira Entrada/Saída da Bomba', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p065', equipId: 'e_ec050', code: '50-0442-9',  ref: '19', desc: 'Parafuso 7 x 7 mm (fixação válvula de água)', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p066', equipId: 'e_ec050', code: '50-0485-9',  ref: '20', desc: 'Parafuso 4 x 13 mm (fixação bloco terminais)', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p067', equipId: 'e_ec050', code: '50-0502-9',  ref: '21', desc: 'Parafuso 5 x 13 mm (fixação bomba d\'água)', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p068', equipId: 'e_ec050', code: '20-0823-9',  ref: '22', desc: 'Restritor (Restrictor)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p069', equipId: 'e_ec050', code: '56-4826-9',  ref: '23a', desc: 'Retentor de Montagem do Compressor', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p070', equipId: 'e_ec050', code: '37-1210-9',  ref: '23b', desc: 'Pino Clevis do Compressor 1/4" x 1"', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p071', equipId: 'e_ec050', code: '56-4828-9',  ref: '23c', desc: 'Clipe Hairpin do Compressor', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p072', equipId: 'e_ec050', code: '50-0090-9',  ref: '23d', desc: 'Manga do Compressor (Sleeve)', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p073', equipId: 'e_ec050', code: '50-0089-9',  ref: '23e', desc: 'Bucha de Borracha do Compressor (Rubber Grommet)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+    { id: 'p074', equipId: 'e_ec050', code: '50-0097-9',  ref: '23f', desc: 'Arruela do Compressor (Washer)', cat: 'Fixação', stock: 'out', obs: '' },
+
+    // ── CONDENSADOR A AR ───────────────────────────────────────
+    { id: 'p075', equipId: 'e_ec050', code: '88-5135-9',  ref: '2',  desc: 'Condensador a Ar (Air Condenser)', cat: 'Refrigeração', stock: 'out', obs: 'Modelos ECG (air-cooled)' },
+    { id: 'p076', equipId: 'e_ec050', code: '30-0564-9',  ref: '3',  desc: 'Defletor do Condensador a Ar (Baffle)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p077', equipId: 'e_ec050', code: '20-0021-9',  ref: '4a', desc: 'Motor do Ventilador 230V/50Hz', cat: 'Motor', stock: 'out', obs: 'Condensador a ar' },
+    { id: 'p078', equipId: 'e_ec050', code: '20-0022-3',  ref: '4b', desc: 'Motor do Ventilador 115V/60Hz', cat: 'Motor', stock: 'out', obs: 'Condensador a ar' },
+    { id: 'p079', equipId: 'e_ec050', code: '30-0565-9',  ref: '5',  desc: 'Hélice do Ventilador (Fan Blade)', cat: 'Motor', stock: 'out', obs: '' },
+    { id: 'p080', equipId: 'e_ec050', code: '602938-9',   ref: '6',  desc: 'Defletor do Ventilador (Fan Shroud)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p081', equipId: 'e_ec050', code: '606174-9',   ref: '7',  desc: 'Suporte do Motor do Ventilador', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p082', equipId: 'e_ec050', code: '50-0523-9',  ref: '10', desc: 'Arruela de Pressão (Lockwasher)', cat: 'Fixação', stock: 'out', obs: '' },
+
+    // ── CONDENSADOR A ÁGUA ─────────────────────────────────────
+    { id: 'p083', equipId: 'e_ec050', code: '82-5252-9',  ref: '2',  desc: 'Condensador a Água (Water Condenser)', cat: 'Refrigeração', stock: 'out', obs: 'Modelos ECG/ECS/ECM W (water-cooled)' },
+    { id: 'p084', equipId: 'e_ec050', code: '82-5215-9',  ref: '3',  desc: 'Filtro Secador Linha Líquida (Liquid Line Drier)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p085', equipId: 'e_ec050', code: '20-0683-9',  ref: '4',  desc: 'Pressostato de Alta Pressão (HPCO)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p086', equipId: 'e_ec050', code: '82-5251-9',  ref: '5',  desc: 'Receiver (Acumulador de Líquido)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'p087', equipId: 'e_ec050', code: '82-5272-9',  ref: '6',  desc: 'Válvula Reguladora de Água', cat: 'Hidráulico', stock: 'out', obs: 'Water Regulating Valve' },
+    { id: 'p088', equipId: 'e_ec050', code: '83-3202-3',  ref: '6a', desc: 'Acoplamento 3/8 F x 3/8 NPT (válvula reguladora)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p089', equipId: 'e_ec050', code: '87-0610-3',  ref: '7',  desc: 'Adaptador 1/2 NPTF', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'p090', equipId: 'e_ec050', code: '605603-9',   ref: '8',  desc: 'Suporte (Bracket) — condensador água', cat: 'Estrutura', stock: 'out', obs: '' },
+
+    // ── PAINÉIS E GABINETE ─────────────────────────────────────
+    { id: 'p091', equipId: 'e_ec050', code: '40-0867-9',  ref: '1',  desc: 'Trilho Direito da Porta — Cinza (Right Hand Track)', cat: 'Estrutura', stock: 'out', obs: 'Porta cinza' },
+    { id: 'p092', equipId: 'e_ec050', code: '40-0868-9',  ref: '2',  desc: 'Trilho Esquerdo da Porta — Cinza (Left Hand Track)', cat: 'Estrutura', stock: 'out', obs: 'Porta cinza' },
+    { id: 'p093', equipId: 'e_ec050', code: '40-0883-9',  ref: '3',  desc: 'Frame da Porta — Cinza', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p094', equipId: 'e_ec050', code: '40-0919-9',  ref: '4',  desc: 'Conjunto Porta — Cinza (Door Assembly)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p095', equipId: 'e_ec050', code: '40-0872-9',  ref: '5',  desc: 'Grade (Grill) — Cinza', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p096', equipId: 'e_ec050', code: '40-0925-9',  ref: '1',  desc: 'Trilho Direito da Porta — Azul', cat: 'Estrutura', stock: 'out', obs: 'Porta azul' },
+    { id: 'p097', equipId: 'e_ec050', code: '40-0926-9',  ref: '2',  desc: 'Trilho Esquerdo da Porta — Azul', cat: 'Estrutura', stock: 'out', obs: 'Porta azul' },
+    { id: 'p098', equipId: 'e_ec050', code: '40-0928-9',  ref: '3',  desc: 'Frame da Porta — Azul', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p099', equipId: 'e_ec050', code: '40-0922-9',  ref: '4',  desc: 'Conjunto Porta — Azul', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p100', equipId: 'e_ec050', code: '40-0927-9',  ref: '5',  desc: 'Grade (Grill) — Azul', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p101', equipId: 'e_ec050', code: '40-0932-9',  ref: '1',  desc: 'Trilho Direito da Porta — Cinza Claro', cat: 'Estrutura', stock: 'out', obs: 'Porta cinza claro' },
+    { id: 'p102', equipId: 'e_ec050', code: '40-0933-9',  ref: '2',  desc: 'Trilho Esquerdo da Porta — Cinza Claro', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p103', equipId: 'e_ec050', code: '40-0936-9',  ref: '3',  desc: 'Frame da Porta — Cinza Claro', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p104', equipId: 'e_ec050', code: '40-0937-9',  ref: '4',  desc: 'Conjunto Porta — Cinza Claro', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p105', equipId: 'e_ec050', code: '40-0934-9',  ref: '5',  desc: 'Grade (Grill) — Cinza Claro', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p106', equipId: 'e_ec050', code: '50-0449-9',  ref: '6',  desc: 'Parafuso da Grade 5 x 13 mm', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'p107', equipId: 'e_ec050', code: '605601-9',   ref: '7',  desc: 'Tampa Superior (Top Cover)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p108', equipId: 'e_ec050', code: '605604-9',   ref: '8',  desc: 'Painel Traseiro (Back Panel)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'p109', equipId: 'e_ec050', code: '000001154',  ref: '9',  desc: 'Painel Utilitário Traseiro (Rear Utility Panel)', cat: 'Estrutura', stock: 'out', obs: '' },
+
+    // ══════════════════════════════════════════════════════════
+    // RATIONAL iCombi Pro 10-1/1 (Fonte: Parts Town / Gastroparts)
+    // ══════════════════════════════════════════════════════════
+    { id: 'r001', equipId: 'e_rat01', code: '20.02.551P',  ref: 'P8',  desc: 'Gaxeta da Porta (Door Gasket) SCC 62 — 26.25x19.62x1.125"', cat: 'Vedação / Gaxeta', stock: 'out', obs: 'Forno combinado 6-2/1 e similares' },
+    { id: 'r002', equipId: 'e_rat01', code: '60.75.779',   ref: 'A1',  desc: 'Escova de Limpeza — Bandeja de Gotejamento (Drip Tray), Flexível', cat: 'Acessório', stock: 'out', obs: '' },
+    { id: 'r003', equipId: 'e_rat01', code: '20.01.330',   ref: 'H5',  desc: 'Resistência de Aquecimento (Hot Air Heating Element)', cat: 'Resistência', stock: 'out', obs: 'Seção de ar quente — Pos. 5' },
+    { id: 'r004', equipId: 'e_rat01', code: '40.07.101',   ref: 'M6',  desc: 'Motor do Ventilador Principal (Fan Motor)', cat: 'Motor', stock: 'out', obs: 'Conjunto motor e roda de pás — Pos. 6' },
+    { id: 'r005', equipId: 'e_rat01', code: '60.70.001',   ref: 'C1',  desc: 'Painel de Controle (Control Panel PCB)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Pos. 1 — Painel de controle' },
+    { id: 'r006', equipId: 'e_rat01', code: '20.02.530',   ref: 'P1',  desc: 'Vedação do Painel de Controle (Sealing for Panel Insert)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+    { id: 'r007', equipId: 'e_rat01', code: '20.07.001',   ref: 'W10', desc: 'Conjunto Sistema de Água (Water System)', cat: 'Hidráulico', stock: 'out', obs: 'Pos. 10 — Water / CleanJet' },
+    { id: 'r008', equipId: 'e_rat01', code: '40.04.001',   ref: 'S4',  desc: 'Gerador de Vapor (Steam Generator)', cat: 'Resistência', stock: 'out', obs: 'Pos. 4 — ClimaPlus' },
+    { id: 'r009', equipId: 'e_rat01', code: '20.02.562',   ref: 'D8',  desc: 'Dobradiça da Porta Superior (Door Hinge Upper)', cat: 'Estrutura', stock: 'out', obs: 'Pos. 8 — Door' },
+    { id: 'r010', equipId: 'e_rat01', code: '20.02.563',   ref: 'D9',  desc: 'Dobradiça da Porta Inferior (Door Hinge Lower)', cat: 'Estrutura', stock: 'out', obs: 'Pos. 8 — Door' },
+    { id: 'r011', equipId: 'e_rat01', code: '20.07.010',   ref: 'C11', desc: 'Bomba do CleanJet + Care', cat: 'Motor', stock: 'out', obs: 'Pos. 11 — CleanJet + Care' },
+    { id: 'r012', equipId: 'e_rat01', code: '20.07.050',   ref: 'G3',  desc: 'Válvula de Gás (Gas Valve)', cat: 'Ignição / Queimador', stock: 'out', obs: 'Pos. 13 — Gas Parts' },
+
+    // ══════════════════════════════════════════════════════════
+    // UNOX XEVC-0711-EPR (Fonte: unox-service.com)
+    // ══════════════════════════════════════════════════════════
+    { id: 'u001', equipId: 'e_unox01', code: 'MG1083A',   ref: 'D1',  desc: 'Conjunto Maçaneta da Porta Mind.Maps (Door Handle Complete)', cat: 'Estrutura', stock: 'out', obs: 'Substitui KVM1180B' },
+    { id: 'u002', equipId: 'e_unox01', code: 'VM2245A0',  ref: 'D2',  desc: 'Eixo da Maçaneta com Trava (Handle Shaft with Latch)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'u003', equipId: 'e_unox01', code: 'VM2248A0',  ref: 'D3',  desc: 'Chave de Fechamento com Trava (Closing Handle Key with Latch)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'u004', equipId: 'e_unox01', code: 'VE1020A2',  ref: 'D4',  desc: 'Microswitch Magnético da Porta (Magnetic Door Microswitch)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Kit: KVE1020A' },
+    { id: 'u005', equipId: 'e_unox01', code: 'VE1030A1',  ref: 'D5',  desc: 'Ímã do Microswitch da Porta D=22,9mm (Magnet for Door Microswitch)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Kit 2 pcs: KVE1030A' },
+    { id: 'u006', equipId: 'e_unox01', code: 'VM2267A0',  ref: 'D6',  desc: 'Slider do Sistema de Trava do Vidro Interno', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'u007', equipId: 'e_unox01', code: 'VM2269A0',  ref: 'D7',  desc: 'Tampa do Sistema de Trava do Vidro Interno', cat: 'Estrutura', stock: 'out', obs: 'Kit: KVM2269A' },
+    { id: 'u008', equipId: 'e_unox01', code: 'VT1277A0',  ref: 'D8',  desc: 'Vidro Externo da Porta XEVC-0711-E', cat: 'Estrutura', stock: 'out', obs: 'Kit: KVT1277A' },
+    { id: 'u009', equipId: 'e_unox01', code: 'LP1020A0',  ref: 'L1',  desc: 'Barra de LED L400 — Iluminação Interna (6 Series E583)', cat: 'Elétrico', stock: 'out', obs: 'Kit: KLP1020A' },
+    { id: 'u010', equipId: 'e_unox01', code: 'RC1200A0',  ref: 'D10', desc: 'Mola de Compressão ED=4 / Fio D=0,5 (Compression Spring)', cat: 'Estrutura', stock: 'out', obs: 'Usada na maçaneta e estrutura da porta' },
+    { id: 'u011', equipId: 'e_unox01', code: 'VM2274A0',  ref: 'D11', desc: 'Bucha Ranurada (Grooved Bushing)', cat: 'Estrutura', stock: 'out', obs: 'Kit: KVM2274A' },
+    { id: 'u012', equipId: 'e_unox01', code: 'VM2305A0',  ref: 'D12', desc: 'Garra de Fixação da Tampa da Porta Série 6 (Door Cap Fixing Pawl)', cat: 'Estrutura', stock: 'out', obs: '' },
+
+    // ══════════════════════════════════════════════════════════
+    // HOBART AM15 (Fonte: Parts Manual HOB-AM15_pm.pdf)
+    // ══════════════════════════════════════════════════════════
+    { id: 'h001', equipId: 'e_hob01', code: '00-893113',       ref: 'C1',  desc: 'Teclado de Membrana (Switch — Membrane Keypad)', cat: 'Painel', stock: 'out', obs: 'Controles — PL-57404' },
+    { id: 'h002', equipId: 'e_hob01', code: '00-892458',       ref: 'C4',  desc: 'Módulo Display (Module — Display)', cat: 'Painel', stock: 'out', obs: '' },
+    { id: 'h003', equipId: 'e_hob01', code: '00-892932',       ref: 'C11', desc: 'Placa de Controle (Control Board Assy)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'AM15 padrão' },
+    { id: 'h004', equipId: 'e_hob01', code: '00-974590',       ref: 'C12', desc: 'Placa de Controle (Control Board Assy — AM15SVL)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Somente AM15SVL' },
+    { id: 'h005', equipId: 'e_hob01', code: '00-892934-00002', ref: 'C15', desc: 'Placa de Relés (Board — Relay Assy)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+    { id: 'h006', equipId: 'e_hob01', code: '00-294500-00051', ref: 'C6',  desc: 'Transformador T2 30V 50/60Hz', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h007', equipId: 'e_hob01', code: '00-294500-052-1', ref: 'C40', desc: 'Transformador T1 — 208/240/480V 50/60Hz', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h008', equipId: 'e_hob01', code: '00-294500-052-2', ref: 'C41', desc: 'Transformador T1 — 380/415V 50/60Hz', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h009', equipId: 'e_hob01', code: '00-087713-108-1', ref: 'C32', desc: 'Contator 25A 3 Polos (Contactor 25 Amp 3-Pole)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h010', equipId: 'e_hob01', code: '00-087714-046-1', ref: 'C35', desc: 'Relé 2 Polos 30A (Relay 2-Pole 30 Amp)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h011', equipId: 'e_hob01', code: '00-893651',       ref: 'C9',  desc: 'Caixa de Controle (Box — Control)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'h012', equipId: 'e_hob01', code: '00-893065',       ref: 'C11', desc: 'Bloco de Terminais Duplo (Block — Terminal Double Row)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h013', equipId: 'e_hob01', code: '00-892793-00002', ref: 'CB1', desc: 'Cabo Flat (Ribbon Cable Assy)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h014', equipId: 'e_hob01', code: '00-893447',       ref: 'CB2', desc: 'Chicote de Sensores (Harness — Sensor Assy AM15/T/F)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h015', equipId: 'e_hob01', code: '00-893448',       ref: 'CB3', desc: 'Chicote da Placa de Relés (Harness — Relay Board Assy AM15/T/F)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h016', equipId: 'e_hob01', code: '00-893125',       ref: 'CB4', desc: 'Cabo Termistor de Enxágue / Chave de Porta (Cable Rinse Thermistor/Door Switch)', cat: 'Sensor / Termostato', stock: 'out', obs: 'AM15/T/F' },
+    { id: 'h017', equipId: 'e_hob01', code: '00-893126-00001', ref: 'CB5', desc: 'Cabo da Válvula de Enxágue s/Booster (Cable Rinse Valve W/O Booster)', cat: 'Elétrico', stock: 'out', obs: 'Antes SN 231154994' },
+    { id: 'h018', equipId: 'e_hob01', code: '00-974072-00001', ref: 'W1',  desc: 'Manifold Superior (Manifold Upper AM15)', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'h019', equipId: 'e_hob01', code: '00-918322',       ref: 'C50', desc: 'Contator Booster 40A 3 Polos 120V (Contactor 40 Amp 3-Pole)', cat: 'Elétrico', stock: 'out', obs: 'Com Booster Elétrico + S.P.E.C.' },
+    { id: 'h020', equipId: 'e_hob01', code: 'FE-026-30',       ref: 'C18', desc: 'Fusível 250V 0,1A (AM15/T/F)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'h021', equipId: 'e_hob01', code: 'FE-022-29',       ref: 'C17', desc: 'Fusível 250V 1,0A', cat: 'Elétrico', stock: 'out', obs: '' },
+
+    // ══════════════════════════════════════════════════════════
+    // TURBOCHEF TORNADO / TORNADO 2 (Fonte: Service Manual)
+    // ══════════════════════════════════════════════════════════
+    { id: 't001', equipId: 'e_tc01', code: 'NGC-3015',  ref: 'M1',  desc: 'Magnetron (Kit — Tornado / NGC)', cat: 'Microondas', stock: 'out', obs: 'Falha F3 — 2 por equipamento' },
+    { id: 't002', equipId: 'e_tc01', code: '100421',    ref: 'M2',  desc: 'Conector do Magnetron (Magnetron Connector)', cat: 'Microondas', stock: 'out', obs: '2 por equipamento' },
+    { id: 't003', equipId: 'e_tc01', code: 'NGC-3014',  ref: 'M3',  desc: 'Gaxeta do Magnetron — por metro (Magnetron Gasket per foot)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+    { id: 't004', equipId: 'e_tc01', code: '102070',    ref: 'M4',  desc: 'Termostato Klixon do Magnetron (Magnetron Thermostat)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+    { id: 't005', equipId: 'e_tc01', code: 'NGC-3062-1',ref: 'T1',  desc: 'Transformador de Alta Tensão HV (Non-Japan)', cat: 'Elétrico', stock: 'out', obs: 'Falha F3 — NGC / i5 / i3 / NGO' },
+    { id: 't006', equipId: 'e_tc01', code: 'NGC-3020',  ref: 'T2',  desc: 'Kit Capacitor Alta Tensão (HV Capacitor Upgrade Kit)', cat: 'Elétrico', stock: 'out', obs: 'Falha F3' },
+    { id: 't007', equipId: 'e_tc01', code: '102012',    ref: 'S1',  desc: 'Chave da Porta (Door Switch — C3D/NGC/i5/i3/NGO/HHB2)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Falha F4' },
+    { id: 't008', equipId: 'e_tc01', code: 'NGC-3005',  ref: 'S2',  desc: 'Relé Estado Sólido Duplo 40A (Dual 40A Solid State Relay)', cat: 'Elétrico', stock: 'out', obs: 'Falha F8' },
+    { id: 't009', equipId: 'e_tc01', code: '101273',    ref: 'R1',  desc: 'Relé K1/K2/K3 (Filamento / Anodo / Monitor)', cat: 'Elétrico', stock: 'out', obs: 'Mesmo código para K1, K2, K3' },
+    { id: 't010', equipId: 'e_tc01', code: '101272',    ref: 'R2',  desc: 'Relé K6 Tensão (Voltage Relay — NGC/i5/i3/NGO)', cat: 'Elétrico', stock: 'out', obs: 'Falha F3' },
+    { id: 't011', equipId: 'e_tc01', code: '101274',    ref: 'R3',  desc: 'Relé K7/K8 (Fan Motor / EC Fan)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 't012', equipId: 'e_tc01', code: 'NGC-1025',  ref: 'B1',  desc: 'Conjunto Blower / Motor Impingement (NGC Blower Assembly)', cat: 'Motor', stock: 'out', obs: 'Falha F1' },
+    { id: 't013', equipId: 'e_tc01', code: '102075',    ref: 'HL1', desc: 'Chave de Alta Temperatura (Hi-Limit Switch)', cat: 'Sensor / Termostato', stock: 'out', obs: 'Falha F8' },
+    { id: 't014', equipId: 'e_tc01', code: '100599',    ref: 'F1',  desc: 'Fusível 20 Ampères (Fuse 20 Amp)', cat: 'Elétrico', stock: 'out', obs: 'Pode queimar com falha F4' },
+    { id: 't015', equipId: 'e_tc01', code: '101211',    ref: 'PS1', desc: 'Fonte de Alimentação 24VDC (Power Supply 24VDC)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Encore e NGC' },
+    { id: 't016', equipId: 'e_tc01', code: 'NGC-3087',  ref: 'F2',  desc: 'Kit de Offset do Ventilador de Resfriamento do Magnetron (Tornado 2)', cat: 'Motor', stock: 'out', obs: 'Somente Tornado 2' },
+    { id: 't017', equipId: 'e_tc01', code: 'NGC-3069',  ref: 'E1',  desc: 'Kit Fonte de Alimentação e Suporte (Power Supply and Bracket Kit)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+
+    // ══════════════════════════════════════════════════════════
+    // MENUMASTER / AMANA (Fonte: WebstaurantStore / Parts Town)
+    // ══════════════════════════════════════════════════════════
+    { id: 'm001', equipId: 'e_mm01', code: '59004010',      ref: 'M1',  desc: 'Magnetron (Menumaster / Amana)', cat: 'Microondas', stock: 'out', obs: 'Também: 53002025' },
+    { id: 'm002', equipId: 'e_mm01', code: '53002040',      ref: 'T1',  desc: 'Transformador de Alta Tensão HV (High Voltage Transformer)', cat: 'Elétrico', stock: 'out', obs: 'Também: 59114143' },
+    { id: 'm003', equipId: 'e_mm01', code: '54127011',      ref: 'T2',  desc: 'Transformador HV (Transformer HV)', cat: 'Elétrico', stock: 'out', obs: '' },
+    { id: 'm004', equipId: 'e_mm01', code: '59114157',      ref: 'S1',  desc: 'Chave de Intertravamento da Porta (Switch Interlock)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Safety interlock switch' },
+    { id: 'm005', equipId: 'e_mm01', code: '14164113',      ref: 'S2',  desc: 'Kit Chaves de Intertravamento (Interlock Switch Kit)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Kit completo de chaves' },
+    { id: 'm006', equipId: 'e_mm01', code: '59244835',      ref: 'K1',  desc: 'Kit Chaves de Porta + Fusíveis Principais (Door Switches & Main Fuses Kit)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Menumaster Kit' },
+    { id: 'm007', equipId: 'e_mm01', code: '59194640',      ref: 'CB1', desc: 'Placa de Controle (Control Board)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+    { id: 'm008', equipId: 'e_mm01', code: '14119064',      ref: 'D1',  desc: 'Conjunto Porta (Door Assembly MM)', cat: 'Estrutura', stock: 'out', obs: 'Código alt: 59114174' },
+    { id: 'm009', equipId: 'e_mm01', code: '14124069',      ref: 'D2',  desc: 'Kit Maçaneta da Porta (Door Handle Kit)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'm010', equipId: 'e_mm01', code: '59174538',      ref: 'C1',  desc: 'Kit Capacitor 0,82 + Diodo (Capacitor Kit)', cat: 'Elétrico', stock: 'out', obs: '' },
+
+    // ══════════════════════════════════════════════════════════
+    // HOSHIZAKI KM-1340MAH (Fonte: ManualsLib)
+    // ══════════════════════════════════════════════════════════
+    { id: 'km01', equipId: 'e_km01', code: '4A4134-01',  ref: 'B19', desc: 'Compressor (KM-901MAH compatível)', cat: 'Compressor', stock: 'out', obs: '' },
+    { id: 'km02', equipId: 'e_km01', code: '106396G02',  ref: 'B21', desc: 'Evaporador (Evaporator — KM-901MAH)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'km03', equipId: 'e_km01', code: '441569-02',  ref: 'B34', desc: 'Coador / Strainer', cat: 'Hidráulico', stock: 'out', obs: '' },
+    { id: 'km04', equipId: 'e_km01', code: '4A2666-01',  ref: 'B35', desc: 'Filtro Secador (Drier)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'km05', equipId: 'e_km01', code: '427430-01',  ref: 'B30', desc: 'Suporte do Termistor (Thermistor Holder)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+    { id: 'km06', equipId: 'e_km01', code: '4A1176-03',  ref: 'C10', desc: 'Válvula de Entrada de Água (Water Inlet Valve)', cat: 'Hidráulico', stock: 'out', obs: 'Também: 4A5251-03' },
+    { id: 'km07', equipId: 'e_km01', code: '415949G10',  ref: 'B14', desc: 'Parafuso de Polegar / Thumbscrew', cat: 'Fixação', stock: 'out', obs: '' },
+    { id: 'km08', equipId: 'e_km01', code: '2A2117G02',  ref: 'B4',  desc: 'Painel Lateral Direito (Right Side Panel)', cat: 'Estrutura', stock: 'out', obs: '' },
+    { id: 'km09', equipId: 'e_km01', code: '3A0944-01',  ref: 'B31', desc: 'Tampa da Válvula de Expansão (Expansion Valve Cover)', cat: 'Refrigeração', stock: 'out', obs: '' },
+    { id: 'km10', equipId: 'e_km01', code: 'P00011-01',  ref: 'C8',  desc: 'Válvula de Entrada de Água — KM-35A (Water Inlet Valve)', cat: 'Hidráulico', stock: 'out', obs: 'Verificar modelo específico' },
+  ];
+  db.diagnostics = [];
+  saveDB();
+}
+
+// Add new equipment to existing DB if not yet present
+const equipIds = db.equipment.map(e => e.id);
+const newEquip = [
+  { id: 'e_rat01',  brand: 'Rational',         model: 'iCombi Pro 10-1/1', line: 'Forno Combinado', voltage: '380V', obs: 'Fonte: Gastroparts / Parts Town 2024' },
+  { id: 'e_unox01', brand: 'Unox',              model: 'XEVC-0711-EPR',     line: 'Forno Combinado', voltage: '220V', obs: 'Cheftop Mind.Maps — Fonte: unox-service.com' },
+  { id: 'e_hob01',  brand: 'ITW/Hobart',        model: 'AM15',              line: 'Lavadora de Capuz', voltage: '220V', obs: 'Fonte: HOB-AM15_pm.pdf Rev.O 2017' },
+  { id: 'e_tc01',   brand: 'Turbochef',          model: 'Tornado / Tornado 2', line: 'Forno Acelerado', voltage: '220V', obs: 'Fonte: Turbochef Service Manual' },
+  { id: 'e_mm01',   brand: 'Menumaster',         model: 'MXP / RCS / RMS Series', line: 'Micro-ondas Comercial', voltage: '220V', obs: 'Fonte: Parts Town / WebstaurantStore' },
+  { id: 'e_km01',   brand: 'Macom/Hoshizaki',   model: 'KM-1340MAH',        line: 'Máquina de Gelo', voltage: '220V', obs: 'Fonte: ManualsLib — KM-1340MAH Parts List' },
+  { id: 'e_tc_tor',  brand: 'Turbochef', model: 'Tornado / Tornado 2', line: 'Forno Acelerado', voltage: '220V', obs: 'Fonte: TurboChef Parts Catalog DOC-1267 Rev.C Jan/2012' },
+  { id: 'e_tc_hhb',  brand: 'Turbochef', model: 'High h Batch (HhB / HhB 2)', line: 'Forno Acelerado Lote', voltage: '220V', obs: 'Fonte: TurboChef Parts Catalog' },
+  { id: 'e_tc_ngo',  brand: 'Turbochef', model: 'Sôta / NGO', line: 'Forno Acelerado', voltage: '220V', obs: 'Fonte: TurboChef Parts Catalog' },
+  { id: 'e_tc_i3',   brand: 'Turbochef', model: 'i3', line: 'Forno Acelerado Countertop', voltage: '220V', obs: 'Fonte: TurboChef Parts Catalog' },
+  { id: 'e_tc_i5',   brand: 'Turbochef', model: 'i5', line: 'Forno Acelerado Countertop', voltage: '220V', obs: 'Fonte: TurboChef Parts Catalog' },
+  { id: 'e_tc_enc',  brand: 'Turbochef', model: 'Encore', line: 'Forno Acelerado Countertop', voltage: '220V', obs: 'Fonte: TurboChef Parts Catalog' },
+  { id: 'e_tc_hhc',  brand: 'Turbochef', model: 'HhC 2020', line: 'Forno Esteira', voltage: '220V', obs: 'Fonte: TurboChef Parts Catalog' },
+].filter(e => !equipIds.includes(e.id));
+if (newEquip.length > 0) {
+  db.equipment.push(...newEquip);
+  saveDB();
+}
+
+// Add TurboChef full parts from PDF catalog
+const tcPartsIds = db.parts.map(p => p.id);
+const tcNewParts = [
+
+  // ══ TORNADO / TORNADO 2 — EXTERIOR ══════════════════════════
+  { id: 'tc_e001', equipId: 'e_tc_tor', code: 'NGC-1061',   ref: '3',  desc: 'Block, Door, Hinge, NGC (x2)', cat: 'Estrutura', stock: 'out', obs: 'Exterior Tornado 2' },
+  { id: 'tc_e002', equipId: 'e_tc_tor', code: 'NGC-1485',   ref: '6',  desc: 'Cover, Display (Tornado 2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e003', equipId: 'e_tc_tor', code: 'NGC-1482',   ref: '7',  desc: 'Cover, Door (Tornado 2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e004', equipId: 'e_tc_tor', code: 'NGC-1484-1', ref: '8',  desc: 'Cover, Left Side (Tornado 2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e005', equipId: 'e_tc_tor', code: 'NGC-1484-2', ref: '9',  desc: 'Cover, Right Side (Tornado 2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e006', equipId: 'e_tc_tor', code: 'NGC-1483',   ref: '10', desc: 'Cover, Top (Tornado 2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e007', equipId: 'e_tc_tor', code: 'NGC-1481',   ref: '11', desc: 'Handle, Door (Tornado 2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e008', equipId: 'e_tc_tor', code: '102805',     ref: '12', desc: 'Hinge, Left (Dobradiça Esquerda)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e009', equipId: 'e_tc_tor', code: '102804',     ref: '13', desc: 'Hinge, Right (Dobradiça Direita)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e010', equipId: 'e_tc_tor', code: 'NGC-3021',   ref: '22', desc: 'Service Kit, NGC Door Shunt Assy', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'tc_e011', equipId: 'e_tc_tor', code: 'NGC-3090',   ref: '23', desc: 'Service Kit, NGC Door (Tornado 2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e012', equipId: 'e_tc_tor', code: 'NGC-3010',   ref: '24', desc: 'Shunt Door Frame Seal, Kit', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'tc_e013', equipId: 'e_tc_tor', code: 'NGC-1076-2', ref: '26', desc: 'Tab, Actuator, Door (Atuador da Porta)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e014', equipId: 'e_tc_tor', code: 'NGC-1056',   ref: '1',  desc: 'Cover, Door NGC Oven (Tornado Original)', cat: 'Estrutura', stock: 'out', obs: 'Original Tornado' },
+  { id: 'tc_e015', equipId: 'e_tc_tor', code: 'NGC-1040',   ref: '2',  desc: 'Cover, Keypad/Display (Tornado Original)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'tc_e016', equipId: 'e_tc_tor', code: 'NGC-1068',   ref: '5',  desc: 'Cover, Top (Tornado Original)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e017', equipId: 'e_tc_tor', code: '102750',     ref: '6',  desc: 'Handle, Door (Tornado Original)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_e018', equipId: 'e_tc_tor', code: 'NGC-3067',   ref: '12', desc: 'Service Kit, Door w/Packaging', cat: 'Estrutura', stock: 'out', obs: 'Kit completo porta' },
+
+  // ══ TORNADO — PAINEL DE CONTROLE ════════════════════════════
+  { id: 'tc_cp01', equipId: 'e_tc_tor', code: '100182',     ref: '1',  desc: 'Cable, Smart Card Reader', cat: 'Elétrico', stock: 'out', obs: 'Painel de controle' },
+  { id: 'tc_cp02', equipId: 'e_tc_tor', code: 'NGC-1495-1', ref: '2',  desc: 'Keypad, General Market, Black (Tornado 2)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'tc_cp03', equipId: 'e_tc_tor', code: 'NGC-1110-1', ref: '2',  desc: 'Keypad, General Market, Gray (Tornado 1)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'tc_cp04', equipId: 'e_tc_tor', code: '100184',     ref: '4',  desc: 'Ribbon Cable, Display Harness (Flat do Display)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_cp05', equipId: 'e_tc_tor', code: 'NGC-3023',   ref: '5',  desc: 'Service Kit, VF Display w/Cable', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'tc_cp06', equipId: 'e_tc_tor', code: '100506',     ref: '6',  desc: 'Smart Card Reader', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+
+  // ══ TORNADO — PAINEL DIREITO REMOVIDO (componentes internos) ═
+  { id: 'tc_r001', equipId: 'e_tc_tor', code: 'CON-3010',   ref: '1',  desc: 'Blower Motor Controller (BMSC)', cat: 'Motor', stock: 'out', obs: 'Controlador do motor do blower' },
+  { id: 'tc_r002', equipId: 'e_tc_tor', code: 'NGC-3020',   ref: '4',  desc: 'Capacitor Kit, 60Hz Non-Japan (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r003', equipId: 'e_tc_tor', code: 'NGC-3020-2', ref: '4',  desc: 'Capacitor Kit, 50Hz Non-Japan (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r004', equipId: 'e_tc_tor', code: '100481',     ref: '5',  desc: 'Diode, High Voltage (x2) — Diodo Alta Tensão', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r005', equipId: 'e_tc_tor', code: 'NGC-1108',   ref: '6',  desc: 'Duct, Magnetron Cooling (Duto Resfr. Magnetron)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_r006', equipId: 'e_tc_tor', code: 'NGC-1099-XXXX', ref: '7', desc: 'EPROM Control, NGC (Software)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Verificar versão com TurboChef' },
+  { id: 'tc_r007', equipId: 'e_tc_tor', code: '100083',     ref: '8',  desc: 'Fan, Magnetron Cooling (Ventilador Resfr. Magnetron)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'tc_r008', equipId: 'e_tc_tor', code: '100543',     ref: '9',  desc: 'Filter, EMI, 1Ph (USA/Europa/América Latina/Japão)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r009', equipId: 'e_tc_tor', code: '100545',     ref: '9',  desc: 'Filter, EMI, 3Ph (Europa/Ásia/Coreia/Japão)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r010', equipId: 'e_tc_tor', code: '100592',     ref: '11', desc: 'Fuse, 12 Amp (Fusível 12A) — F1/F2', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r011', equipId: 'e_tc_tor', code: '100599',     ref: '12', desc: 'Fuse, 20 Amp (Fusível 20A) — F3', cat: 'Elétrico', stock: 'out', obs: 'Pode queimar com falha F4' },
+  { id: 'tc_r012', equipId: 'e_tc_tor', code: 'NGC-3015',   ref: '13', desc: 'Magnetron (x2 por forno)', cat: 'Microondas', stock: 'out', obs: 'Falha F3 — 2 por equipamento' },
+  { id: 'tc_r013', equipId: 'e_tc_tor', code: '100421',     ref: '14', desc: 'Magnetron Connector (Conector do Magnetron x2)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'tc_r014', equipId: 'e_tc_tor', code: 'NGC-3087',   ref: '15', desc: 'Magnetron Cooling Fan Offset, Kit (Tornado 2 only)', cat: 'Motor', stock: 'out', obs: 'Somente Tornado 2' },
+  { id: 'tc_r015', equipId: 'e_tc_tor', code: 'NGC-3014',   ref: '16', desc: 'Magnetron Gasket — por metro (Gaxeta Magnetron)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'tc_r016', equipId: 'e_tc_tor', code: '102070',     ref: '17', desc: 'Magnetron Thermostat, Klixon (Termostato Magnetron)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'tc_r017', equipId: 'e_tc_tor', code: 'NGC-1163',   ref: '18', desc: 'Magnetron Thermostat Insulator', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'tc_r018', equipId: 'e_tc_tor', code: '100186',     ref: '19', desc: 'Magnetron Wire (Cabo Termostato Magnetron)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r019', equipId: 'e_tc_tor', code: 'NGC-3069',   ref: '22', desc: 'Power Supply and Bracket, Kit (Fonte de Alimentação)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'tc_r020', equipId: 'e_tc_tor', code: '101273',     ref: '23', desc: 'Relay K1 — Filament (Relé Filamento)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r021', equipId: 'e_tc_tor', code: '101273',     ref: '24', desc: 'Relay K2 — HV Transformers (Relé Transformador AT)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r022', equipId: 'e_tc_tor', code: '101273',     ref: '25', desc: 'Relay K3 — Monitor (Relé Monitor)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r023', equipId: 'e_tc_tor', code: 'NGC-3005',   ref: '26', desc: 'Relay K4/K5 — Solid State Dual 40A (SSR)', cat: 'Elétrico', stock: 'out', obs: 'Falha F8' },
+  { id: 'tc_r024', equipId: 'e_tc_tor', code: '101272',     ref: '27', desc: 'Relay K6 — Voltage (60Hz USA)', cat: 'Elétrico', stock: 'out', obs: 'Falha F3' },
+  { id: 'tc_r025', equipId: 'e_tc_tor', code: 'NGC-3030-X', ref: '28', desc: 'Relay K7 — Mag Cooling Fan + Software Upgrade', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r026', equipId: 'e_tc_tor', code: '102567',     ref: '30', desc: 'Sealant RTV Permatex 3oz (Selante Guia de Ondas)', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'tc_r027', equipId: 'e_tc_tor', code: '700-1199',   ref: '32', desc: 'Thermocouple, Electrical Compartment (Termopar)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'tc_r028', equipId: 'e_tc_tor', code: '102086',     ref: '33', desc: 'Thermostat, Snap Disk N.O. Close on Rise 120F', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'tc_r029', equipId: 'e_tc_tor', code: 'NGC-3061-1', ref: '34', desc: 'Transformer, Filament 60Hz (USA/Intl Non-Japan)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r030', equipId: 'e_tc_tor', code: 'NGC-3061-2', ref: '34', desc: 'Transformer, Filament 50Hz (Intl Non-Japan)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_r031', equipId: 'e_tc_tor', code: 'NGC-3062-1', ref: '35', desc: 'Transformer, HV 60Hz (USA/Intl Non-Japan) x2', cat: 'Elétrico', stock: 'out', obs: 'Falha F3' },
+  { id: 'tc_r032', equipId: 'e_tc_tor', code: 'NGC-3062-2', ref: '35', desc: 'Transformer, HV 50Hz (Intl Non-Japan) x2', cat: 'Elétrico', stock: 'out', obs: 'Falha F3' },
+  { id: 'tc_r033', equipId: 'e_tc_tor', code: 'NGC-3036',   ref: '37', desc: 'Waveguide Cover, Kit (Tampa Guia de Ondas)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'tc_r034', equipId: 'e_tc_tor', code: 'NGC-3016',   ref: '38', desc: 'Waveguide, Front, with Gasket, Kit (Guia Frente)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'tc_r035', equipId: 'e_tc_tor', code: 'NGC-3017',   ref: '39', desc: 'Waveguide, Rear, with Gasket, Kit (Guia Traseira)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'tc_r036', equipId: 'e_tc_tor', code: 'NGC-1308',   ref: '40', desc: 'Waveguide Gasket, Stamped SS (Gaxeta Guia de Ondas)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'tc_r037', equipId: 'e_tc_tor', code: 'NGC-3032',   ref: '41', desc: 'Wire Harness, SSR, Kit (Chicote SSR)', cat: 'Elétrico', stock: 'out', obs: '' },
+
+  // ══ TORNADO — PAINEL TRASEIRO ════════════════════════════════
+  { id: 'tc_b001', equipId: 'e_tc_tor', code: 'NGC-1025',   ref: '1',  desc: 'Assy, NGC Blower (Conjunto Blower/Motor Impingement)', cat: 'Motor', stock: 'out', obs: 'Falha F1' },
+  { id: 'tc_b002', equipId: 'e_tc_tor', code: 'NGC-3086',   ref: '2',  desc: 'Bottom IR Element, Kit (Resistência IR Inferior)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'tc_b003', equipId: 'e_tc_tor', code: 'NGC-1012',   ref: '3',  desc: 'Catalytic Converter (Conversor Catalítico)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_b004', equipId: 'e_tc_tor', code: 'NGC-3077',   ref: '4',  desc: 'Cooling Fan, Kit (Ventilador de Resfriamento)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'tc_b005', equipId: 'e_tc_tor', code: 'NGC-1043',   ref: '8',  desc: 'Gasket, Convection Heater (Gaxeta Resistência Conv.)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'tc_b006', equipId: 'e_tc_tor', code: 'NGC-3011',   ref: '9',  desc: 'Heater, Convection, Kit (Resistência Convecção)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'tc_b007', equipId: 'e_tc_tor', code: 'NGC-3089',   ref: '10', desc: 'Heater Wires, Kit — Convection Element (Fios Resist.)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_b008', equipId: 'e_tc_tor', code: 'NGC-1116',   ref: '14', desc: 'Shield, Microwave (Proteção Micro-ondas)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_b009', equipId: 'e_tc_tor', code: 'NGC-1140',   ref: '17', desc: 'Thermocouple, Cook Chamber (Termopar Câmara)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'tc_b010', equipId: 'e_tc_tor', code: '102075',     ref: '18', desc: 'Thermostat, High Limit EGO 300°C Manual Reset 3 Polos', cat: 'Sensor / Termostato', stock: 'out', obs: 'Falha F8 — Reset manual' },
+
+  // ══ TORNADO — SWITCH DETAIL (Chaves da Porta) ════════════════
+  { id: 'tc_s001', equipId: 'e_tc_tor', code: 'NGC-1076-2', ref: '1',  desc: 'Actuator, Door (Atuador da Porta)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'tc_s002', equipId: 'e_tc_tor', code: 'NGC-1072',   ref: '2',  desc: 'Bracket, Latch (Suporte da Trava)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_s003', equipId: 'e_tc_tor', code: 'NGC-3006',   ref: '3',  desc: 'Door Switch Spring Grease, Service Kit', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'tc_s004', equipId: 'e_tc_tor', code: 'NGC-3033',   ref: '6',  desc: 'Service Kit, Door Switch Replacement (Kit Chave Porta)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Ver FSB-10057 e FSB-10094' },
+  { id: 'tc_s005', equipId: 'e_tc_tor', code: 'NGC-1087',   ref: '7',  desc: 'Spring, Door (Mola da Porta)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'tc_s006', equipId: 'e_tc_tor', code: '102012',     ref: '10', desc: 'Switch, Door — Component (Chave de Porta)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Falha F4 — Primary/Secondary/Monitor' },
+  { id: 'tc_s007', equipId: 'e_tc_tor', code: 'NGC-1073',   ref: '11', desc: 'Toggle, Latch (Alavanca de Trava)', cat: 'Estrutura', stock: 'out', obs: '' },
+
+  // ══ TORNADO — MISCELÂNEOS ════════════════════════════════════
+  { id: 'tc_m001', equipId: 'e_tc_tor', code: '100189',     ref: '4',  desc: 'High Voltage Wire Assembly — Magnetron HT Wires', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_m002', equipId: 'e_tc_tor', code: 'NGC-1169-1', ref: '24', desc: 'Shim 0.030 THK Door Switch (Calço Chave Porta)', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'tc_m003', equipId: 'e_tc_tor', code: 'NGC-1169-2', ref: '25', desc: 'Shim 0.045 THK Door Switch', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'tc_m004', equipId: 'e_tc_tor', code: '101283',     ref: '27', desc: 'Thermal Joint Compound, Silicone (Pasta Térmica)', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'tc_m005', equipId: 'e_tc_tor', code: 'NGC-1150-1', ref: '29', desc: 'Wire Harness, Line Voltage w/Relays & Mount (US Oven)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_m006', equipId: 'e_tc_tor', code: 'NGC-1418',   ref: '31', desc: 'Wire Harness, Low Voltage (1 left side door switch)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'tc_m007', equipId: 'e_tc_tor', code: '100185',     ref: '32', desc: 'Wire Harness, Low Voltage (2 left side door switches)', cat: 'Elétrico', stock: 'out', obs: '' },
+
+  // ══ HIGH h BATCH (HhB) — EXTERIOR ═══════════════════════════
+  { id: 'hhb_e01', equipId: 'e_tc_hhb', code: 'HHB-8108',   ref: '2',  desc: 'Catalytic Converter (Conversor Catalítico)', cat: 'Estrutura', stock: 'out', obs: 'HhB Exterior' },
+  { id: 'hhb_e02', equipId: 'e_tc_hhb', code: 'HHB-3218',   ref: '7',  desc: 'Door Kit (Kit Porta)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhb_e03', equipId: 'e_tc_hhb', code: 'HHB-8114',   ref: '9',  desc: 'Filter, Grease (Filtro de Gordura)', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'hhb_e04', equipId: 'e_tc_hhb', code: 'HHB-8101',   ref: '11', desc: 'Gasket, Door (Gaxeta da Porta)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'hhb_e05', equipId: 'e_tc_hhb', code: 'HHB-8190',   ref: '12', desc: 'Handle, Door (Maçaneta da Porta)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhb_e06', equipId: 'e_tc_hhb', code: '102807',     ref: '13', desc: 'Hinge, Door (Dobradiça da Porta x2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhb_e07', equipId: 'e_tc_hhb', code: 'HHB-8176',   ref: '15', desc: 'Inner Door Plate with Gasket (Placa Int. Porta c/Gaxeta)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'hhb_e08', equipId: 'e_tc_hhb', code: 'HHB-8013-1', ref: '16', desc: 'Jetplate, Bottom, Standard (Placa Jato Inferior Std)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhb_e09', equipId: 'e_tc_hhb', code: 'HHB-8013-2', ref: '17', desc: 'Jetplate, Top, Standard (Placa Jato Superior Std)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhb_e10', equipId: 'e_tc_hhb', code: 'HHB-8064-1', ref: '18', desc: 'Keypad (Teclado)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'hhb_e11', equipId: 'e_tc_hhb', code: 'HHB-8117',   ref: '26', desc: 'Support Rail, Top (Trilho Superior x2)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhb_e12', equipId: 'e_tc_hhb', code: 'HHB-3220',   ref: '28', desc: 'Switch, Plunger Style, Kit (Chave Pistão)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+
+  // ══ HIGH h BATCH (HhB) — BACK PANEL / RACK DRIVE ════════════
+  { id: 'hhb_b01', equipId: 'e_tc_hhb', code: 'HHB-8106',   ref: '2',  desc: 'Blower Assembly (Conjunto Blower)', cat: 'Motor', stock: 'out', obs: 'Falha F1' },
+  { id: 'hhb_b02', equipId: 'e_tc_hhb', code: 'CON-7013',   ref: '4',  desc: 'Controller, Motor (Controlador do Motor)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'hhb_b03', equipId: 'e_tc_hhb', code: 'HHB-3201',   ref: '7',  desc: 'Drag Link Assembly, Kit (Conjunto Elo Tração)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhb_b04', equipId: 'e_tc_hhb', code: '100592',     ref: '14', desc: 'Fuse, 12 Amp, ATMR (Fusível 12A)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'hhb_b05', equipId: 'e_tc_hhb', code: 'HHB-3231',   ref: '16', desc: 'Rack Motor, Kit (Motor da Grade)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhb_b06', equipId: 'e_tc_hhb', code: 'HHB-3206',   ref: '17', desc: 'Swing Arm Assembly, Left and Right, Kit', cat: 'Motor', stock: 'out', obs: '' },
+
+  // ══ HIGH h BATCH (HhB) — RIGHT COVER REMOVED ════════════════
+  { id: 'hhb_r01', equipId: 'e_tc_hhb', code: 'HHB-3213-X', ref: '4',  desc: 'Control Board, Standard, Kit (Placa de Controle)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Contatar TurboChef para opções de programação' },
+  { id: 'hhb_r02', equipId: 'e_tc_hhb', code: 'HHB-3216',   ref: '5',  desc: 'Heaters (x2), Sheathed, Kit (Resistências Blindadas)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'hhb_r03', equipId: 'e_tc_hhb', code: '101211',     ref: '6',  desc: 'Power Supply, 24VDC (Meanwell)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'hhb_r04', equipId: 'e_tc_hhb', code: 'NGC-3005',   ref: '7',  desc: 'Relay, Solid State Dual 40A, Kit (SSR)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'hhb_r05', equipId: 'e_tc_hhb', code: '101273',     ref: '8',  desc: 'Relay, Two Pole (Relé Bipolar)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'hhb_r06', equipId: 'e_tc_hhb', code: 'HHB-3203',   ref: '10', desc: 'Smart Card Reader with Cable, Kit', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'hhb_r07', equipId: 'e_tc_hhb', code: 'HHB-8170',   ref: '14', desc: 'Thermocouple, Ungrounded Assembly (Termopar)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'hhb_r08', equipId: 'e_tc_hhb', code: '102075',     ref: '15', desc: 'Thermostat, High Limit EGO 300°C Manual Reset 3 Polos', cat: 'Sensor / Termostato', stock: 'out', obs: 'Falha F8' },
+  { id: 'hhb_r09', equipId: 'e_tc_hhb', code: '102086',     ref: '16', desc: 'Thermostat, Snap Disk N.O. Close on Rise 120°F', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+
+  // ══ SÔTA / NGO — EXTERIOR ═══════════════════════════════════
+  { id: 'ngo_e01', equipId: 'e_tc_ngo', code: 'NGC-1076-2', ref: '1',  desc: 'Actuator, Door Latch (Atuador Trava Porta)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'ngo_e02', equipId: 'e_tc_ngo', code: 'i1-9459',    ref: '3',  desc: 'Door Handle (Maçaneta da Porta)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_e03', equipId: 'e_tc_ngo', code: 'i1-3210',    ref: '4',  desc: 'Door Shunt Plate, Kit (Placa Shunt Porta)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'ngo_e04', equipId: 'e_tc_ngo', code: 'i1-3201-1',  ref: '6',  desc: 'Door, Complete Assembly — Sôta', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_e05', equipId: 'e_tc_ngo', code: 'i1-9039',    ref: '8',  desc: 'Filter, Air (Filtro de Ar)', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'ngo_e06', equipId: 'e_tc_ngo', code: 'i1-9159',    ref: '10', desc: 'Jetplate (Bottom), with Diverter (Placa Jato Inf.)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_e07', equipId: 'e_tc_ngo', code: 'i1-3204',    ref: '11', desc: 'Jetplate (Top), with Support Rails, Kit', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_e08', equipId: 'e_tc_ngo', code: 'i1-9398',    ref: '21', desc: 'Rack (Grade Interna)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_e09', equipId: 'e_tc_ngo', code: 'RWD-9191',   ref: '23', desc: 'Vent Catalyst Foil Pack (Catalisador de Ventilação)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_e10', equipId: 'e_tc_ngo', code: 'i1-3212',    ref: '19', desc: 'MW Stirrer, Kit (Kit Agitador Micro-ondas)', cat: 'Microondas', stock: 'out', obs: '' },
+
+  // ══ SÔTA / NGO — COVER REMOVED (componentes) ════════════════
+  { id: 'ngo_r01', equipId: 'e_tc_ngo', code: 'i3-9042',    ref: '2',  desc: 'Blower Motor, Bottom (Motor Blower Inferior)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'ngo_r02', equipId: 'e_tc_ngo', code: 'i3-9040',    ref: '3',  desc: 'Blower Motor, Top (Motor Blower Superior)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'ngo_r03', equipId: 'e_tc_ngo', code: 'i1-9411',    ref: '11', desc: 'Heater (x2) (Resistência de Aquecimento)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'ngo_r04', equipId: 'e_tc_ngo', code: 'i3-9379',    ref: '12', desc: 'Heater Plate (Placa da Resistência)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'ngo_r05', equipId: 'e_tc_ngo', code: 'HHC-6517-2', ref: '13', desc: 'RTD, Cook Cavity 3" (Sonda Câmara Cocção)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'ngo_r06', equipId: 'e_tc_ngo', code: '102075',     ref: '15', desc: 'Thermostat, High-Limit 300°C (Termostato Segurança)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'ngo_r07', equipId: 'e_tc_ngo', code: 'CON-7015',   ref: '2',  desc: 'Circuit Board, Capacitor/Diode (Placa Cap./Diodo)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'ngo_r08', equipId: 'e_tc_ngo', code: '100599',     ref: '6',  desc: 'Fuse F3 20A (Fusível 20A)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'ngo_r09', equipId: 'e_tc_ngo', code: '100592',     ref: '7',  desc: 'Fuses F1/F2 12A (Fusíveis 12A)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'ngo_r10', equipId: 'e_tc_ngo', code: 'CON-7039',   ref: '9',  desc: 'Motor Controller (Controlador do Motor)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'ngo_r11', equipId: 'e_tc_ngo', code: 'NGC-3069',   ref: '10', desc: 'Power Supply Kit (Fonte de Alimentação)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'ngo_r12', equipId: 'e_tc_ngo', code: '101274',     ref: '11', desc: 'Relay K1 — Filament', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'ngo_r13', equipId: 'e_tc_ngo', code: '101274',     ref: '12', desc: 'Relay K2 — Mag Fan', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'ngo_r14', equipId: 'e_tc_ngo', code: '101272',     ref: '14', desc: 'Relay K6 — Voltage', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'ngo_r15', equipId: 'e_tc_ngo', code: 'NGC-3005',   ref: '17', desc: 'Solid State Relay Dual 40A (SSR sem Dissipador)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'ngo_r16', equipId: 'e_tc_ngo', code: '100884',     ref: '20', desc: 'Stirrer Motor (Motor do Agitador)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'ngo_r17', equipId: 'e_tc_ngo', code: '102086',     ref: '22', desc: 'Thermostat, Cooling Fans 120°F', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'ngo_r18', equipId: 'e_tc_ngo', code: 'NGC-3015',   ref: '7',  desc: 'Magnetron (x2)', cat: 'Microondas', stock: 'out', obs: 'Falha F3' },
+  { id: 'ngo_r19', equipId: 'e_tc_ngo', code: 'NGC-3061-1', ref: '11', desc: 'Transformer, Filament 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'ngo_r20', equipId: 'e_tc_ngo', code: 'NGC-3062-1', ref: '12', desc: 'Transformer, High-Voltage 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: 'Falha F3' },
+  { id: 'ngo_r21', equipId: 'e_tc_ngo', code: 'i1-9462',    ref: 'W1', desc: 'Waveguide Cover (x2)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'ngo_r22', equipId: 'e_tc_ngo', code: 'i1-3202',    ref: 'W2', desc: 'Waveguide Kit (x2)', cat: 'Microondas', stock: 'out', obs: '' },
+
+  // ══ SÔTA / NGO — HINGE & SWITCH DETAIL ══════════════════════
+  { id: 'ngo_s01', equipId: 'e_tc_ngo', code: 'NGC-3033',   ref: '1',  desc: 'Door Switch, Primary, Kit (Chave Porta Primária)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Ver FSB-10057 e FSB-10094' },
+  { id: 'ngo_s02', equipId: 'e_tc_ngo', code: '102825',     ref: '2',  desc: 'Hinge, LHS (Dobradiça Esquerda)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_s03', equipId: 'e_tc_ngo', code: '102826',     ref: '3',  desc: 'Hinge, RHS (Dobradiça Direita)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'ngo_s04', equipId: 'e_tc_ngo', code: '102013',     ref: '4',  desc: 'Interlock Switch — Monitor', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'ngo_s05', equipId: 'e_tc_ngo', code: '102013',     ref: '5',  desc: 'Interlock Switch — Secondary', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+
+  // ══ i3 — EXTERIOR ════════════════════════════════════════════
+  { id: 'i3_e01', equipId: 'e_tc_i3', code: 'i3-3211',    ref: '3',  desc: 'Door, i3, Complete (Porta Completa i3)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i3_e02', equipId: 'e_tc_i3', code: 'i3-9309',    ref: '1',  desc: 'Door Gasket (Gaxeta da Porta i3)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'i3_e03', equipId: 'e_tc_i3', code: 'i3-9253',    ref: '2',  desc: 'Door Handle (Maçaneta da Porta i3)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i3_e04', equipId: 'e_tc_i3', code: 'i3-9307',    ref: '3',  desc: 'Door Shunt Plate', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i3_e05', equipId: 'e_tc_i3', code: 'i3-9160',    ref: '9',  desc: 'Jetplate, Bottom (Placa Jato Inferior)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i3_e06', equipId: 'e_tc_i3', code: 'i3-9434',    ref: '11', desc: 'Jetplate, Top, Dual Window (SN ≥ 01301)', cat: 'Estrutura', stock: 'out', obs: 'Ver nota de SN no catálogo' },
+  { id: 'i3_e07', equipId: 'e_tc_i3', code: '100546',     ref: '8',  desc: 'EMI Filter (Filtro EMI)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_e08', equipId: 'e_tc_i3', code: 'RWD-9191',   ref: '20', desc: 'Vent Tube Catalyst (Catalisador Ventilação)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i3_e09', equipId: 'e_tc_i3', code: 'i5-3213',    ref: '23', desc: 'Waveguide Cover, Service Kit', cat: 'Microondas', stock: 'out', obs: '' },
+
+  // ══ i3 — TOP COVER OPEN (componentes eletrônicos) ═══════════
+  { id: 'i3_r01', equipId: 'e_tc_i3', code: 'CON-7015',   ref: '3',  desc: 'Circuit Board, Capacitor/Diode', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i3_r02', equipId: 'e_tc_i3', code: '100592',     ref: '5',  desc: 'Fuse F1, 12A', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r03', equipId: 'e_tc_i3', code: '100592',     ref: '6',  desc: 'Fuse F2, 12A', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r04', equipId: 'e_tc_i3', code: '100599',     ref: '7',  desc: 'Fuse F3, 20A', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r05', equipId: 'e_tc_i3', code: 'i3-9247',    ref: '8',  desc: 'Keypad (Teclado i3)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'i3_r06', equipId: 'e_tc_i3', code: '101211',     ref: '9',  desc: 'Power Supply 24VDC', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i3_r07', equipId: 'e_tc_i3', code: '101274',     ref: '10', desc: 'Relay K1 — Filament', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r08', equipId: 'e_tc_i3', code: '101273',     ref: '11', desc: 'Relay K2 — Anode', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r09', equipId: 'e_tc_i3', code: '101273',     ref: '12', desc: 'Relay K3 — Monitor', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r10', equipId: 'e_tc_i3', code: '101272',     ref: '13', desc: 'Relay K6 — Voltage', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r11', equipId: 'e_tc_i3', code: 'NGC-3005',   ref: '16', desc: 'Solid State Relay Dual 40A (sem Dissipador)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r12', equipId: 'e_tc_i3', code: '101286',     ref: '17', desc: 'Solid State Relay Dual 40A (com Dissipador)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r13', equipId: 'e_tc_i3', code: 'NGC-3015',   ref: '8',  desc: 'Magnetron (x2)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'i3_r14', equipId: 'e_tc_i3', code: 'NGC-3061-1', ref: '15', desc: 'Transformer, Filament 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_r15', equipId: 'e_tc_i3', code: 'NGC-3062-1', ref: '16', desc: 'Transformer, HV 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+
+  // ══ i3 — SIDE COVERS REMOVED ════════════════════════════════
+  { id: 'i3_s01', equipId: 'e_tc_i3', code: 'i3-9042',    ref: '1',  desc: 'Blower Motor, Bottom, CW (Motor Blower Inf.)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'i3_s02', equipId: 'e_tc_i3', code: 'i3-9040',    ref: '2',  desc: 'Blower Motor, Top, CCW (Motor Blower Sup.)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'i3_s03', equipId: 'e_tc_i3', code: 'i3-9378',    ref: '8',  desc: 'Heater Element 3000W 208V Helical (x2) (Resistência)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'i3_s04', equipId: 'e_tc_i3', code: '102012',     ref: '10', desc: 'Interlock Switch — Monitor', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i3_s05', equipId: 'e_tc_i3', code: '102012',     ref: '11', desc: 'Interlock Switch — Secondary', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i3_s06', equipId: 'e_tc_i3', code: '102012',     ref: '12', desc: 'Interlock Switch — Primary', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i3_s07', equipId: 'e_tc_i3', code: 'HHC-6517-2', ref: '15', desc: 'RTD, Cook Cavity (Sonda de Temperatura Câmara)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'i3_s08', equipId: 'e_tc_i3', code: '102075',     ref: '17', desc: 'Thermostat, High-Limit 300°C', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'i3_s09', equipId: 'e_tc_i3', code: 'i3-9236',    ref: 'M1', desc: 'Harness, Line Voltage (Chicote Alta Tensão)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i3_s10', equipId: 'e_tc_i3', code: 'i3-9238',    ref: 'M2', desc: 'Harness, Low Voltage (Chicote Baixa Tensão)', cat: 'Elétrico', stock: 'out', obs: '' },
+
+  // ══ i5 — EXTERIOR ════════════════════════════════════════════
+  { id: 'i5_e01', equipId: 'e_tc_i5', code: 'i5-9308',    ref: '3',  desc: 'Door Assembly (Porta Completa i5)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i5_e02', equipId: 'e_tc_i5', code: 'i5-9309',    ref: '4',  desc: 'Door Gasket (Gaxeta da Porta i5)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'i5_e03', equipId: 'e_tc_i5', code: 'i5-9253',    ref: '5',  desc: 'Door Handle (Maçaneta da Porta i5)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i5_e04', equipId: 'e_tc_i5', code: 'i5-3200',    ref: '13', desc: 'Jetplate, Bottom, with Fasteners (Placa Jato Inf.)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i5_e05', equipId: 'e_tc_i5', code: 'i5-3204',    ref: '14', desc: 'Jetplate, Top (Placa Jato Superior)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'i5_e06', equipId: 'e_tc_i5', code: 'i5-9307',    ref: '21', desc: 'Shunt Plate Assembly', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i5_e07', equipId: 'e_tc_i5', code: 'i5-9154',    ref: '22', desc: 'Stirrer (Agitador)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'i5_e08', equipId: 'e_tc_i5', code: 'i5-3213',    ref: '26', desc: 'Waveguide Cover, Kit', cat: 'Microondas', stock: 'out', obs: '' },
+
+  // ══ i5 — TOP COVER OPEN ═════════════════════════════════════
+  { id: 'i5_r01', equipId: 'e_tc_i5', code: '100592',     ref: '5',  desc: 'Fuse F1 12A (Fusível F1)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i5_r02', equipId: 'e_tc_i5', code: '100592',     ref: '6',  desc: 'Fuse F2 12A (Fusível F2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i5_r03', equipId: 'e_tc_i5', code: '100599',     ref: '8',  desc: 'Fuse F3 20A (Fusível F3 — sem F4)', cat: 'Elétrico', stock: 'out', obs: 'i5 SN > 00501: apenas 1 fusível 20A' },
+  { id: 'i5_r04', equipId: 'e_tc_i5', code: 'i5-9247',    ref: '11', desc: 'Keypad (Teclado i5)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'i5_r05', equipId: 'e_tc_i5', code: '101211',     ref: '12', desc: 'Power Supply 24VDC', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i5_r06', equipId: 'e_tc_i5', code: '101273',     ref: '14', desc: 'Relay K1 — Filament', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i5_r07', equipId: 'e_tc_i5', code: 'NGC-3005',   ref: '22', desc: 'Solid State Relay Dual 40A, Kit', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i5_r08', equipId: 'e_tc_i5', code: 'NGC-3015',   ref: '17', desc: 'Magnetron (x2)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'i5_r09', equipId: 'e_tc_i5', code: 'NGC-3062-1', ref: '24', desc: 'Transformer, HV 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'i5_r10', equipId: 'e_tc_i5', code: 'NGC-3061-1', ref: '23', desc: 'Transformer, Filament 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+
+  // ══ i5 — SIDE COVERS REMOVED ════════════════════════════════
+  { id: 'i5_s01', equipId: 'e_tc_i5', code: 'i5-9042',    ref: '1',  desc: 'Blower Motor, Bottom (Motor Blower Inferior)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'i5_s02', equipId: 'e_tc_i5', code: 'i5-9040',    ref: '2',  desc: 'Blower Motor, Top (Motor Blower Superior)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'i5_s03', equipId: 'e_tc_i5', code: 'i5-3216',    ref: '10', desc: 'Heater Helical, Kit (Resistência Helicoidal)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'i5_s04', equipId: 'e_tc_i5', code: '102012',     ref: '12', desc: 'Interlock Switch — Monitor', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i5_s05', equipId: 'e_tc_i5', code: '102012',     ref: '13', desc: 'Interlock Switch — Secondary', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i5_s06', equipId: 'e_tc_i5', code: '102012',     ref: '14', desc: 'Interlock Switch — Primary', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'i5_s07', equipId: 'e_tc_i5', code: 'HHC-6517',   ref: '17', desc: 'RTD, Cook Cavity (Sonda Câmara)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'i5_s08', equipId: 'e_tc_i5', code: 'i5-3210',    ref: 'W1', desc: 'Waveguide (x2)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'i5_s09', equipId: 'e_tc_i5', code: 'i5-9331',    ref: 'W2', desc: 'Waveguide Gasket (Gaxeta Guia Ondas x2)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+
+  // ══ ENCORE — EXTERIOR ═══════════════════════════════════════
+  { id: 'enc_e01', equipId: 'e_tc_enc', code: 'ENC-1114',   ref: '7',  desc: 'Filter, Air (Filtro de Ar)', cat: 'Acessório', stock: 'out', obs: '' },
+  { id: 'enc_e02', equipId: 'e_tc_enc', code: 'ENC-1216',   ref: '14', desc: 'Rack, Oven (Grade do Forno)', cat: 'Estrutura', stock: 'out', obs: '' },
+
+  // ══ ENCORE — IMPINGEMENT SYSTEM ═════════════════════════════
+  { id: 'enc_i01', equipId: 'e_tc_enc', code: 'NGC-1025',   ref: '1',  desc: 'Blower Motor (Motor Blower)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'enc_i02', equipId: 'e_tc_enc', code: 'CON-3010',   ref: '2',  desc: 'Blower Motor Speed Controller (BMSC)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'enc_i03', equipId: 'e_tc_enc', code: 'NGC-1043',   ref: '6',  desc: 'Gasket, Heater, Top (Gaxeta Resistência Superior)', cat: 'Vedação / Gaxeta', stock: 'out', obs: '' },
+  { id: 'enc_i04', equipId: 'e_tc_enc', code: '100661',     ref: '7',  desc: 'Heater, Top (Resistência Superior)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'enc_i05', equipId: 'e_tc_enc', code: '101286',     ref: '8',  desc: 'Relay, Solid State K4/K5 — Heaters', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_i06', equipId: 'e_tc_enc', code: '102075',     ref: '9',  desc: 'Thermostat, High-Limit 300°C', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'enc_i07', equipId: 'e_tc_enc', code: 'ENC-1147',   ref: '2',  desc: 'Catalytic Converter (Conversor Catalítico)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'enc_i08', equipId: 'e_tc_enc', code: 'ENC-3002',   ref: '3',  desc: 'Heater, Bottom (Resistência Inferior)', cat: 'Resistência', stock: 'out', obs: '' },
+  { id: 'enc_i09', equipId: 'e_tc_enc', code: 'ENC-1066',   ref: '5',  desc: 'Jetplate, Bottom (Placa Jato Inferior)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'enc_i10', equipId: 'e_tc_enc', code: 'HHC-6517-2', ref: '6',  desc: 'RTD, Cook Cavity 3" (x2) (Sonda Câmara)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+
+  // ══ ENCORE — MICROWAVE SYSTEM ════════════════════════════════
+  { id: 'enc_m01', equipId: 'e_tc_enc', code: 'NGC-3015',   ref: '11', desc: 'Magnetron (x2)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'enc_m02', equipId: 'e_tc_enc', code: '104228',     ref: '13', desc: 'Thermostat, Magnetron (x2) (Termostato Magnetron)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'enc_m03', equipId: 'e_tc_enc', code: 'NGC-3061-1', ref: '14', desc: 'Transformer, Filament 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_m04', equipId: 'e_tc_enc', code: 'NGC-3062-1', ref: '15', desc: 'Transformer, HV 60Hz (x2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_m05', equipId: 'e_tc_enc', code: 'ENC-3008',   ref: '16', desc: 'Waveguide Kit (x2) (Kit Guia de Ondas)', cat: 'Microondas', stock: 'out', obs: '' },
+  { id: 'enc_m06', equipId: 'e_tc_enc', code: 'i1-9462',    ref: '17', desc: 'Waveguide Cover (x2)', cat: 'Microondas', stock: 'out', obs: '' },
+
+  // ══ ENCORE — DOOR AND HINGES ═════════════════════════════════
+  { id: 'enc_d01', equipId: 'e_tc_enc', code: 'i1-3220-1',  ref: '1',  desc: 'Hinge, Left (Dobradiça Esquerda)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'enc_d02', equipId: 'e_tc_enc', code: 'i1-3220-2',  ref: '2',  desc: 'Hinge, Right (Dobradiça Direita)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'enc_d03', equipId: 'e_tc_enc', code: '102013',     ref: '3',  desc: 'Interlock Switch — Monitor', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'enc_d04', equipId: 'e_tc_enc', code: '102013',     ref: '4',  desc: 'Interlock Switch — Secondary', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'enc_d05', equipId: 'e_tc_enc', code: 'NGC-3033',   ref: '5',  desc: 'Kit, Door Switch Primary (Kit Chave Porta Primária)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Ver FSB-10057 e FSB-10094' },
+  { id: 'enc_d06', equipId: 'e_tc_enc', code: 'ENC-3003',   ref: '3',  desc: 'Door, Entire Assembly (Porta Completa Encore)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'enc_d07', equipId: 'e_tc_enc', code: 'ENC-1122-9005', ref: '4', desc: 'Handle, Door, Black (Maçaneta Porta Preta)', cat: 'Estrutura', stock: 'out', obs: '' },
+
+  // ══ ENCORE — CONTROL SYSTEM ══════════════════════════════════
+  { id: 'enc_c01', equipId: 'e_tc_enc', code: 'CON-3006',   ref: '8',  desc: 'Kit, Control Board (Placa de Controle)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'enc_c02', equipId: 'e_tc_enc', code: 'ENC-3004',   ref: '9',  desc: 'Kit, Keypad (Teclado Encore)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'enc_c03', equipId: 'e_tc_enc', code: 'CON-7011',   ref: '6',  desc: 'Display (Tela)', cat: 'Painel', stock: 'out', obs: '' },
+  { id: 'enc_c04', equipId: 'e_tc_enc', code: 'CON-7005',   ref: '13', desc: 'USB/Smart Card Reader', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+
+  // ══ ENCORE — POWER COMPONENTS ════════════════════════════════
+  { id: 'enc_p01', equipId: 'e_tc_enc', code: '100592',     ref: '3',  desc: 'Fuse F1, 12A (Fusível F1)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p02', equipId: 'e_tc_enc', code: '100592',     ref: '4',  desc: 'Fuse F2, 12A (Fusível F2)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p03', equipId: 'e_tc_enc', code: '100599',     ref: '5',  desc: 'Fuse F3, 20A (Fusível F3)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p04', equipId: 'e_tc_enc', code: '101211',     ref: '8',  desc: 'Power Supply, 24VDC', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'enc_p05', equipId: 'e_tc_enc', code: '101273',     ref: '9',  desc: 'Relay K1 — Filament', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p06', equipId: 'e_tc_enc', code: '101273',     ref: '10', desc: 'Relay K2 — Anode', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p07', equipId: 'e_tc_enc', code: '101273',     ref: '11', desc: 'Relay K3 — Monitor', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p08', equipId: 'e_tc_enc', code: '101272',     ref: '12', desc: 'Relay K6 — Voltage', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p09', equipId: 'e_tc_enc', code: '101274',     ref: '13', desc: 'Relay K7 — Magnetron Fan', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p10', equipId: 'e_tc_enc', code: '101274',     ref: '14', desc: 'Relay K8 — EC Fan', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'enc_p11', equipId: 'e_tc_enc', code: '102086',     ref: '15', desc: 'Thermostat, Cooling Fan EC 120°F', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+
+  // ══ HhC 2020 — EXTERIOR ══════════════════════════════════════
+  { id: 'hhc_e01', equipId: 'e_tc_hhc', code: 'HCT-4143',   ref: '4',  desc: 'Chain, Conveyor (Corrente da Esteira)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhc_e02', equipId: 'e_tc_hhc', code: 'HCT-3009',   ref: '8',  desc: 'Conveyor, Single Belt, Kit (Kit Esteira Simples)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhc_e03', equipId: 'e_tc_hhc', code: 'HCT-3010',   ref: '8',  desc: 'Conveyor, Split Belt 50/50, Kit', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhc_e04', equipId: 'e_tc_hhc', code: 'TC3-0433',   ref: '11', desc: 'Cooling Fan (x2) (Ventilador de Resfriamento)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhc_e05', equipId: 'e_tc_hhc', code: 'HCT-3017-1', ref: '13', desc: 'Door, Bottom Hinge, Kit (Porta — Dobradiça Inferior)', cat: 'Estrutura', stock: 'out', obs: 'Verificar tipo de porta instalada' },
+  { id: 'hhc_e06', equipId: 'e_tc_hhc', code: 'HCT-4028',   ref: '15', desc: 'Eyelid (Tampa Saída)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhc_e07', equipId: 'e_tc_hhc', code: 'HHC-1234',   ref: '19', desc: 'Keypad (Teclado HhC 2020)', cat: 'Painel', stock: 'out', obs: '' },
+
+  // ══ HhC 2020 — OVEN INTERIOR ════════════════════════════════
+  { id: 'hhc_i01', equipId: 'e_tc_hhc', code: 'HCT-4099',   ref: '4',  desc: 'Jetplate (x2) (Placa Jato)', cat: 'Estrutura', stock: 'out', obs: '' },
+  { id: 'hhc_i02', equipId: 'e_tc_hhc', code: 'HCT-3016',   ref: '5',  desc: 'Heaters, Flat Spiral, Kit (Resistências Espiral Plana)', cat: 'Resistência', stock: 'out', obs: 'Para SN < HHC2020ED00270 — substituir ambas' },
+  { id: 'hhc_i03', equipId: 'e_tc_hhc', code: 'HCT-4258',   ref: '5',  desc: 'Heater, Flat Spiral (individual) (Resistência Individual)', cat: 'Resistência', stock: 'out', obs: 'Para SN ≥ HHC2020ED00270 — pode substituir 1 só' },
+  { id: 'hhc_i04', equipId: 'e_tc_hhc', code: 'HCT-4020',   ref: '6',  desc: 'Plenum (x2)', cat: 'Estrutura', stock: 'out', obs: '' },
+
+  // ══ HhC 2020 — LEFT END BELL ════════════════════════════════
+  { id: 'hhc_l01', equipId: 'e_tc_hhc', code: 'HCT-4205',   ref: '1',  desc: 'Blower Motor Assembly (x2) (Conjunto Blower)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhc_l02', equipId: 'e_tc_hhc', code: 'CON-7013',   ref: '2',  desc: 'Blower Motor Controller (x2) (Controlador Motor)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'hhc_l03', equipId: 'e_tc_hhc', code: 'HHC-6630-2', ref: '3',  desc: 'Conveyor Controller (Controlador da Esteira)', cat: 'Eletrônica / Controle', stock: 'out', obs: 'Somente config. split-belt' },
+  { id: 'hhc_l04', equipId: 'e_tc_hhc', code: 'HCT-4120',   ref: '4',  desc: 'Conveyor Motor (Motor da Esteira)', cat: 'Motor', stock: 'out', obs: '' },
+  { id: 'hhc_l05', equipId: 'e_tc_hhc', code: '100599',     ref: '8',  desc: 'Fuse, 20A Class CC (x2) (Fusível 20A)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'hhc_l06', equipId: 'e_tc_hhc', code: '101279',     ref: '12', desc: 'Relay, Mechanical K6', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'hhc_l07', equipId: 'e_tc_hhc', code: 'HCT-4213',   ref: '13', desc: 'Relay, Solid State Dual 40A Heavy Duty (SSR)', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'hhc_l08', equipId: 'e_tc_hhc', code: '102075',     ref: '15', desc: 'Thermostat, High Limit', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+
+  // ══ HhC 2020 — RIGHT END BELL ═══════════════════════════════
+  { id: 'hhc_r01', equipId: 'e_tc_hhc', code: 'HCT-3002-X', ref: '6',  desc: 'Control Board, Programmed (Placa de Controle)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'hhc_r02', equipId: 'e_tc_hhc', code: '101211',     ref: '11', desc: 'Power Supply (Fonte de Alimentação)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'hhc_r03', equipId: 'e_tc_hhc', code: '101279',     ref: '13', desc: 'Relay, Mechanical K7', cat: 'Elétrico', stock: 'out', obs: '' },
+  { id: 'hhc_r04', equipId: 'e_tc_hhc', code: 'HHC-6517-2', ref: '14', desc: 'RTD (Sonda de Temperatura)', cat: 'Sensor / Termostato', stock: 'out', obs: '' },
+  { id: 'hhc_r05', equipId: 'e_tc_hhc', code: '100506',     ref: '15', desc: 'Smart Card Reader', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+  { id: 'hhc_r06', equipId: 'e_tc_hhc', code: 'HHC-3011',   ref: 'M1', desc: 'HhC 2020 Firmware Update, Kit (Atualização Firmware)', cat: 'Eletrônica / Controle', stock: 'out', obs: '' },
+
+].filter(p => !tcPartsIds.includes(p.id));
+
+if (tcNewParts.length > 0) {
+  db.parts.push(...tcNewParts);
+  saveDB();
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let currentEquipId = null;
+let currentTab = 'tabParts';
+
+// ============================================================
+// SIDEBAR
+// ============================================================
+function renderSidebar(filter = '') {
+  const container = document.getElementById('sidebarBrands');
+  container.innerHTML = '';
+  filter = filter.toLowerCase();
+
+  BRANDS.forEach(brand => {
+    const equipments = db.equipment.filter(e =>
+      e.brand === brand.name &&
+      (filter === '' || e.model.toLowerCase().includes(filter) || brand.name.toLowerCase().includes(filter))
+    );
+    if (equipments.length === 0 && filter !== '') return;
+
+    const grp = document.createElement('div');
+    grp.className = 'brand-group' + (equipments.length > 0 && filter !== '' ? ' open' : '');
+    grp.innerHTML = `
+      <div class="brand-header no-select" onclick="toggleBrand(this.parentElement)">
+        <div class="brand-logo" style="background:${brand.bg}22; color:${brand.bg}">${brand.abbr}</div>
+        <span class="brand-name">${brand.name}</span>
+        <span class="brand-count">${db.equipment.filter(e=>e.brand===brand.name).length}</span>
+        <span class="brand-chevron">▶</span>
+      </div>
+      <div class="brand-equipment">
+        ${equipments.length === 0
+          ? `<div class="equip-item" style="font-size:12px; font-style:italic;">Nenhum equipamento</div>`
+          : equipments.map(e => `
+            <div class="equip-item ${currentEquipId===e.id?'active':''}" onclick="selectEquip('${e.id}')">
+              <span class="equip-dot"></span>${e.model}
+            </div>
+          `).join('')
+        }
+      </div>
+    `;
+    container.appendChild(grp);
+  });
+}
+
+function toggleBrand(grp) {
+  grp.classList.toggle('open');
+}
+
+function filterSidebar() {
+  renderSidebar(document.getElementById('sideSearch').value);
+}
+
+// ============================================================
+// SELECT EQUIPMENT
+// ============================================================
+function selectEquip(id) {
+  currentEquipId = id;
+  document.getElementById('welcome').style.display = 'none';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(currentTab).classList.add('active');
+  renderSidebar(document.getElementById('sideSearch').value);
+  renderCurrentTab();
+}
+
+function renderCurrentTab() {
+  if (!currentEquipId) return;
+  if (currentTab === 'tabParts') renderParts();
+  else if (currentTab === 'tabExploded') renderExploded();
+  else if (currentTab === 'tabDiag') renderDiag();
+  else if (currentTab === 'tabSettings') {}
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function showTab(tabId) {
+  currentTab = tabId;
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['tabParts','tabExploded','tabDiag','tabSettings'][i] === tabId);
+  });
+  if (!currentEquipId) {
+    document.getElementById('welcome').style.display = 'flex';
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    return;
+  }
+  document.getElementById('welcome').style.display = 'none';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  renderCurrentTab();
+}
+
+// ============================================================
+// PARTS TAB
+// ============================================================
+function getBrand(equip) {
+  return BRANDS.find(b => b.name === equip.brand) || { abbr: '?', bg: '#555', color: '#fff' };
+}
+
+function renderParts() {
+  const equip = db.equipment.find(e => e.id === currentEquipId);
+  if (!equip) return;
+  const brand = getBrand(equip);
+
+  // Header
+  document.getElementById('equipHeader').innerHTML = `
+    <div class="equip-brand-badge" style="background:${brand.bg}22; color:${brand.bg}">${brand.abbr}</div>
+    <div class="equip-header-info">
+      <h1>${equip.model}</h1>
+      <div class="meta">
+        <span class="meta-tag">📌 ${equip.brand}</span>
+        <span class="meta-tag">⚡ ${equip.voltage}</span>
+        ${equip.line ? `<span class="meta-tag">🍽 ${equip.line}</span>` : ''}
+        ${equip.obs ? `<span class="meta-tag">📝 ${equip.obs}</span>` : ''}
+      </div>
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="deleteEquip('${equip.id}')">Excluir</button>
+  `;
+
+  // Stats
+  const parts = db.equipment_parts = db.parts.filter(p => p.equipId === currentEquipId);
+  const okCount = parts.filter(p => p.stock === 'ok').length;
+  const lowCount = parts.filter(p => p.stock === 'low').length;
+  const outCount = parts.filter(p => p.stock === 'out').length;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total de Peças</div><div class="stat-value">${parts.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Em Estoque</div><div class="stat-value" style="color:var(--success)">${okCount}</div></div>
+    <div class="stat-card"><div class="stat-label">Estoque Baixo</div><div class="stat-value" style="color:var(--warning)">${lowCount}</div></div>
+    <div class="stat-card"><div class="stat-label">Sem Estoque</div><div class="stat-value" style="color:var(--danger)">${outCount}</div></div>
+  `;
+
+  // Category filter
+  const cats = [...new Set(parts.map(p => p.cat).filter(Boolean))];
+  const catEl = document.getElementById('catFilter');
+  catEl.innerHTML = '<option value="">Todas as categorias</option>' + cats.map(c => `<option>${c}</option>`).join('');
+
+  filterParts();
+}
+
+function filterParts() {
+  const equip = db.equipment.find(e => e.id === currentEquipId);
+  if (!equip) return;
+  const parts = db.parts.filter(p => p.equipId === currentEquipId);
+  const search = (document.getElementById('partSearch')?.value || '').toLowerCase();
+  const cat = document.getElementById('catFilter')?.value || '';
+  const stock = document.getElementById('stockFilter')?.value || '';
+
+  const filtered = parts.filter(p =>
+    (search === '' || p.code.toLowerCase().includes(search) || p.desc.toLowerCase().includes(search) || (p.ref||'').toLowerCase().includes(search)) &&
+    (cat === '' || p.cat === cat) &&
+    (stock === '' || p.stock === stock)
+  );
+
+  const stockBadge = s => {
+    if (s === 'ok') return '<span class="badge badge-ok">Em estoque</span>';
+    if (s === 'low') return '<span class="badge badge-low">Estoque baixo</span>';
+    return '<span class="badge badge-out">Sem estoque</span>';
+  };
+
+  const tbody = document.getElementById('partsBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">🔩</div>Nenhuma peça encontrada. <button class="btn btn-primary btn-sm" onclick="openModal('modalPart')" style="margin-left:8px">+ Adicionar</button></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(p => `
+    <tr>
+      <td><span class="part-code">${p.code}</span></td>
+      <td>${p.desc}<br>${p.obs ? `<small style="color:var(--muted)">${p.obs}</small>` : ''}</td>
+      <td><span class="badge badge-cat">${p.cat || '—'}</span></td>
+      <td style="text-align:center; font-family:monospace; color:var(--accent)">${p.ref || '—'}</td>
+      <td>${stockBadge(p.stock)}</td>
+      <td class="actions-cell">
+        <button class="btn btn-ghost btn-sm" onclick="editPart('${p.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePart('${p.id}')">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ============================================================
+// EXPLODED TAB
+// ============================================================
+function renderExploded() {
+  const equip = db.equipment.find(e => e.id === currentEquipId);
+  if (!equip) return;
+  const parts = db.parts.filter(p => p.equipId === currentEquipId && p.ref);
+
+  const area = document.getElementById('explodedArea');
+  area.innerHTML = `
+    <div class="exploded-placeholder" onclick="triggerImageUpload('${equip.id}')">
+      <div class="icon">📐</div>
+      <p>Clique para <strong>adicionar a vista explodida</strong> do ${equip.model}<br>
+      <small>Formatos aceitos: JPG, PNG, PDF</small></p>
+    </div>
+    <input type="file" id="uploadExploded_${equip.id}" accept="image/*" style="display:none" onchange="handleExplodedUpload(event,'${equip.id}')">
+  `;
+
+  // Legend
+  const legend = document.getElementById('explodedLegend');
+  if (parts.length === 0) {
+    legend.innerHTML = `<div class="empty-state"><div class="icon">🗂</div>Adicione peças com referência de posição para ver a legenda.</div>`;
+    return;
+  }
+  legend.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+    <thead style="background:var(--surface2)">
+      <tr>
+        <th style="padding:8px 12px; font-size:11px; color:var(--muted); text-transform:uppercase">Pos.</th>
+        <th style="padding:8px 12px; font-size:11px; color:var(--muted); text-transform:uppercase">Código</th>
+        <th style="padding:8px 12px; font-size:11px; color:var(--muted); text-transform:uppercase">Descrição</th>
+        <th style="padding:8px 12px; font-size:11px; color:var(--muted); text-transform:uppercase">Categoria</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${parts.sort((a,b)=>(a.ref||'').localeCompare(b.ref||'')).map(p=>`
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px 12px; text-align:center; font-family:monospace; color:var(--accent); font-weight:700">${p.ref}</td>
+          <td style="padding:8px 12px;"><span class="part-code">${p.code}</span></td>
+          <td style="padding:8px 12px; font-size:13px">${p.desc}</td>
+          <td style="padding:8px 12px;"><span class="badge badge-cat">${p.cat||'—'}</span></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>`;
+}
+
+function triggerImageUpload(equipId) {
+  document.getElementById('uploadExploded_' + equipId)?.click();
+}
+
+function handleExplodedUpload(event, equipId) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const area = document.getElementById('explodedArea');
+    area.innerHTML = `
+      <div class="exploded-img-wrap">
+        <img src="${e.target.result}" alt="Vista Explodida">
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload('${equipId}')">Trocar imagem</button>
+      </div>
+      <input type="file" id="uploadExploded_${equipId}" accept="image/*" style="display:none" onchange="handleExplodedUpload(event,'${equipId}')">
+    `;
+    showToast('Vista explodida carregada! ✅', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============================================================
+// DIAGNOSTICS TAB
+// ============================================================
+function renderDiag() {
+  const equip = db.equipment.find(e => e.id === currentEquipId);
+  if (!equip) return;
+  const diags = db.diagnostics.filter(d => d.equipId === currentEquipId);
+  const list = document.getElementById('diagList');
+
+  if (diags.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">🔍</div>Nenhum diagnóstico registrado para este equipamento.<br>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modalDiag')" style="margin-top:12px">+ Registrar Diagnóstico</button></div>`;
+    return;
+  }
+
+  list.innerHTML = diags.sort((a,b)=>b.date.localeCompare(a.date)).map(d => `
+    <div class="diag-card">
+      <h4>
+        <span>🔍 ${d.symptom}</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteDiag('${d.id}')">🗑</button>
+      </h4>
+      <div class="diag-meta">
+        <span>👤 ${d.tech}</span>
+        <span>📅 ${formatDate(d.date)}</span>
+        <span>🔧 ${equip.model}</span>
+      </div>
+      <p style="font-size:13px; color:var(--text); margin-bottom:10px; line-height:1.5">${d.desc}</p>
+      ${d.parts.length > 0 ? `
+        <div>
+          <div style="font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:6px; font-weight:600">Peças utilizadas</div>
+          <div class="diag-parts">
+            ${d.parts.map(code => `<span class="diag-part-tag" onclick="searchPartByCode('${code}')">${code}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function formatDate(s) {
+  const [y,m,d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function searchPartByCode(code) {
+  const part = db.parts.find(p => p.code === code);
+  if (part) {
+    currentEquipId = part.equipId;
+    showTab('tabParts');
+    setTimeout(() => {
+      const inp = document.getElementById('partSearch');
+      if (inp) { inp.value = code; filterParts(); }
+    }, 100);
+  }
+}
+
+// ============================================================
+// MODALS
+// ============================================================
+function openModal(id) {
+  if (id === 'modalPart' || id === 'modalDiag') {
+    const sel = id === 'modalPart' ? 'newPartEquip' : 'newDiagEquip';
+    const el = document.getElementById(sel);
+    el.innerHTML = db.equipment.map(e => `<option value="${e.id}" ${e.id===currentEquipId?'selected':''}>${e.brand} — ${e.model}</option>`).join('');
+  }
+  if (id === 'modalDiag') {
+    document.getElementById('newDiagDate').value = new Date().toISOString().split('T')[0];
+  }
+  document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ============================================================
+// SAVE FUNCTIONS
+// ============================================================
+function fillEquipVoltageSelect(powerText){
+  const sel = document.getElementById('newEquipVoltage');
+  const t = (powerText || '').toUpperCase();
+  if (t.includes('380')) sel.value = '380V';
+  else if (t.includes('110') || t.includes('127')) sel.value = '110V';
+  else if (t.includes('BIVOLT')) sel.value = 'Bivolt';
+  else sel.value = '220V';
+}
+
+function matchBrandOption(brandText){
+  const sel = document.getElementById('newEquipBrand');
+  const clean = (brandText || '').toLowerCase().trim();
+  if (!clean) return false;
+  for (const opt of sel.options){
+    if (opt.value.toLowerCase().includes(clean) || clean.includes(opt.value.toLowerCase().split('/')[0])) {
+      sel.value = opt.value;
+      return true;
+    }
+  }
+  return false;
+}
+
+function compressImage(dataUrl, maxDimension, quality){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round(height * (maxDimension / width));
+          width = maxDimension;
+        } else {
+          width = Math.round(width * (maxDimension / height));
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+document.getElementById('plateFileInput').addEventListener('change', async function(e){
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('plateStatus');
+  const noteEl = document.getElementById('plateNote');
+  const labelEl = document.getElementById('plateUploadLabel');
+  noteEl.style.display = 'none';
+  statusEl.style.display = 'block';
+  statusEl.textContent = '⏳ Lendo plaqueta…';
+  labelEl.style.pointerEvents = 'none';
+  labelEl.style.opacity = '0.6';
+
+  try{
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    // Comprime a foto antes de enviar — fotos direto da câmera do celular
+    // costumam vir muito pesadas (3-8MB) e estouram o limite da função Netlify.
+    statusEl.textContent = '⏳ Preparando foto…';
+    const compressedDataUrl = await compressImage(dataUrl, 1400, 0.82);
+    const base64Data = compressedDataUrl.split(',')[1];
+    const mediaType = 'image/jpeg';
+
+    statusEl.textContent = '⏳ Lendo plaqueta…';
+
+    const response = await fetch("/.netlify/functions/read-plate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64Data, mediaType: mediaType })
+    });
+
+    if (!response.ok) {
+      let detail = '';
+      try { const errJson = await response.json(); detail = errJson.error || ''; } catch(e) {}
+      throw new Error('Erro no servidor (' + response.status + ')' + (detail ? ': ' + detail : ''));
+    }
+    const parsed = await response.json();
+    if (parsed.error) throw new Error(parsed.error);
+
+    const brandMatched = matchBrandOption(parsed.brand);
+    document.getElementById('newEquipModel').value = parsed.model || '';
+    document.getElementById('newEquipLine').value = parsed.category || '';
+    fillEquipVoltageSelect(parsed.power);
+
+    let obsLines = [];
+    if (parsed.serial) obsLines.push('Nº de série: ' + parsed.serial);
+    if (parsed.power) obsLines.push('Potência/Tensão (plaqueta): ' + parsed.power);
+    document.getElementById('newEquipObs').value = obsLines.join('\n');
+
+    statusEl.textContent = '✅ Plaqueta lida — confira os campos antes de salvar';
+    if (!brandMatched && parsed.brand){
+      noteEl.style.display = 'block';
+      noteEl.textContent = '🆕 Marca "' + parsed.brand + '" não está na lista — selecione a mais próxima ou adicione manualmente.';
+    }
+  } catch(err){
+    statusEl.textContent = '⚠️ Não consegui ler essa foto (' + (err && err.message ? err.message : 'erro') + '). Preencha manualmente ou tente outra foto.';
+  } finally {
+    labelEl.style.pointerEvents = 'auto';
+    labelEl.style.opacity = '1';
+    e.target.value = '';
+  }
+});
+
+function saveEquipment() {
+  const brand = document.getElementById('newEquipBrand').value;
+  const model = document.getElementById('newEquipModel').value.trim();
+  if (!model) { showToast('Informe o modelo do equipamento.', 'error'); return; }
+  const equip = {
+    id: 'e' + Date.now(),
+    brand, model,
+    line: document.getElementById('newEquipLine').value.trim(),
+    voltage: document.getElementById('newEquipVoltage').value,
+    obs: document.getElementById('newEquipObs').value.trim(),
+  };
+  db.equipment.push(equip);
+  saveDB();
+  closeModal('modalEquip');
+  renderSidebar();
+  selectEquip(equip.id);
+  showToast('Equipamento salvo! ✅', 'success');
+  document.getElementById('newEquipModel').value = '';
+  document.getElementById('newEquipLine').value = '';
+  document.getElementById('newEquipObs').value = '';
+}
+
+function savePart() {
+  const code = document.getElementById('newPartCode').value.trim();
+  const desc = document.getElementById('newPartDesc').value.trim();
+  const equipId = document.getElementById('newPartEquip').value;
+  if (!code || !desc) { showToast('Preencha código e descrição.', 'error'); return; }
+  const part = {
+    id: 'p' + Date.now(),
+    equipId,
+    code,
+    ref: document.getElementById('newPartRef').value.trim(),
+    desc,
+    cat: document.getElementById('newPartCat').value.trim(),
+    stock: document.getElementById('newPartStock').value,
+    obs: document.getElementById('newPartObs').value.trim(),
+  };
+  db.parts.push(part);
+  saveDB();
+  closeModal('modalPart');
+  if (equipId === currentEquipId) renderCurrentTab();
+  showToast('Peça adicionada! ✅', 'success');
+  ['newPartCode','newPartRef','newPartDesc','newPartCat','newPartObs'].forEach(id => document.getElementById(id).value = '');
+}
+
+function saveDiag() {
+  const equipId = document.getElementById('newDiagEquip').value;
+  const symptom = document.getElementById('newDiagSymptom').value.trim();
+  const tech = document.getElementById('newDiagTech').value.trim();
+  if (!symptom || !tech) { showToast('Preencha técnico e sintoma.', 'error'); return; }
+  const partsRaw = document.getElementById('newDiagParts').value;
+  const parts = partsRaw ? partsRaw.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const diag = {
+    id: 'd' + Date.now(),
+    equipId, tech,
+    date: document.getElementById('newDiagDate').value,
+    symptom,
+    desc: document.getElementById('newDiagDesc').value.trim(),
+    parts,
+  };
+  db.diagnostics.push(diag);
+  saveDB();
+  closeModal('modalDiag');
+  if (equipId === currentEquipId && currentTab === 'tabDiag') renderDiag();
+  showToast('Diagnóstico salvo! ✅', 'success');
+}
+
+// ============================================================
+// DELETE
+// ============================================================
+function deletePart(id) {
+  if (!confirm('Excluir esta peça?')) return;
+  db.parts = db.parts.filter(p => p.id !== id);
+  saveDB();
+  renderCurrentTab();
+  showToast('Peça excluída.', 'success');
+}
+
+function deleteDiag(id) {
+  if (!confirm('Excluir este diagnóstico?')) return;
+  db.diagnostics = db.diagnostics.filter(d => d.id !== id);
+  saveDB();
+  renderDiag();
+}
+
+function deleteEquip(id) {
+  if (!confirm('Excluir equipamento e todas as suas peças e diagnósticos?')) return;
+  db.equipment = db.equipment.filter(e => e.id !== id);
+  db.parts = db.parts.filter(p => p.equipId !== id);
+  db.diagnostics = db.diagnostics.filter(d => d.equipId !== id);
+  saveDB();
+  currentEquipId = null;
+  renderSidebar();
+  document.getElementById('welcome').style.display = 'flex';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  showToast('Equipamento excluído.', 'success');
+}
+
+function editPart(id) {
+  const p = db.parts.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('newPartEquip').value = p.equipId;
+  document.getElementById('newPartCode').value = p.code;
+  document.getElementById('newPartRef').value = p.ref || '';
+  document.getElementById('newPartDesc').value = p.desc;
+  document.getElementById('newPartCat').value = p.cat || '';
+  document.getElementById('newPartStock').value = p.stock;
+  document.getElementById('newPartObs').value = p.obs || '';
+  // Remove old, save new
+  db.parts = db.parts.filter(x => x.id !== id);
+  openModal('modalPart');
+}
+
+// ============================================================
+// IMPORT / EXPORT
+// ============================================================
+function exportData() {
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'techkitchen_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  showToast('Dados exportados! 💾', 'success');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.equipment || !imported.parts) throw new Error('Formato inválido');
+      db = imported;
+      saveDB();
+      renderSidebar();
+      currentEquipId = null;
+      document.getElementById('welcome').style.display = 'flex';
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      showToast('Dados importados com sucesso! ✅', 'success');
+    } catch(err) {
+      showToast('Arquivo inválido. Verifique o JSON.', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function clearAll() {
+  if (!confirm('Tem certeza? Todos os dados serão apagados permanentemente.')) return;
+  db = { equipment: [], parts: [], diagnostics: [] };
+  saveDB();
+  currentEquipId = null;
+  renderSidebar();
+  document.getElementById('welcome').style.display = 'flex';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  showToast('Dados limpos.', 'success');
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+renderSidebar();
+
+// ── PWA INSTALL ─────────────────────────────
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('pwaBar').style.display = 'flex';
+});
+function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => {
+      deferredPrompt = null;
+      document.getElementById('pwaBar').style.display = 'none';
+    });
+  } else {
+    // iOS Safari: instrução manual
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIOS) {
+      alert('No iPhone/iPad (Safari):\n\n1. Toque no botão Compartilhar (□↑) na barra inferior\n2. Role para baixo e toque em "Adicionar à Tela de Início"\n3. Toque em "Adicionar" no canto superior direito\n\n✅ O app aparecerá na sua tela inicial!');
+    } else {
+      alert('Para instalar:\n\nNo Chrome Android: toque nos 3 pontos (⋮) > "Adicionar à tela inicial"\n\nNo Samsung Internet: toque em ≡ > "Adicionar página a" > "Tela inicial"');
+    }
+  }
+}
+window.addEventListener('appinstalled', () => {
+  document.getElementById('pwaBar').style.display = 'none';
+  deferredPrompt = null;
+  showToast('App instalado com sucesso! 🎉', 'success');
+});
+
+// Mostrar barra no mobile mesmo sem prompt (para iOS)
+if (/iphone|ipad|ipod|android/i.test(navigator.userAgent)) {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (!isStandalone) {
+    setTimeout(() => {
+      const bar = document.getElementById('pwaBar');
+      if (bar) bar.style.display = 'flex';
+    }, 2000);
+  }
+}
+</script>
+</body>
+</html>
