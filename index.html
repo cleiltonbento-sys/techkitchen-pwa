@@ -146,6 +146,18 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .mini-form input { flex: 1; min-width: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; color: var(--text); font-size: 12.5px; }
   .company-equip-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
 
+  .techdocs-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 18px; }
+  .techdocs-box h3 { font-size: 13.5px; margin-bottom: 3px; }
+  .techdocs-sub { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+  .techdocs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .techdoc-slot { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .techdoc-slot .slot-label { font-size: 11.5px; color: var(--text-dim,#9aa2a9); font-weight: 600; margin-bottom: 8px; display:flex; align-items:center; gap:6px; }
+  .techdoc-file { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+  .techdoc-file a { color: var(--accent2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+  .techdoc-file .rm { cursor: pointer; color: var(--danger); font-size: 12px; margin-left: 8px; }
+  .techdoc-upload-btn { display: block; text-align: center; border: 1.5px dashed var(--border); border-radius: 8px; padding: 10px; font-size: 11.5px; color: var(--muted); cursor: pointer; }
+  .techdoc-upload-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -672,6 +684,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
       <!-- PARTS TAB -->
       <div id="tabParts" class="panel">
         <div class="equip-header" id="equipHeader"></div>
+        <div id="techDocsSection"></div>
         <div class="stats-row" id="statsRow"></div>
         <div class="table-controls">
           <div class="search-wrap" style="flex:1; min-width:200px;">
@@ -964,15 +977,61 @@ function loadDB() {
     const raw = localStorage.getItem('techkitchen_db');
     if (raw) return JSON.parse(raw);
   } catch(e) {}
-  return { equipment: [], parts: [], diagnostics: [], companies: [] };
+  return { equipment: [], parts: [], diagnostics: [], companies: [], techDocs: {} };
 }
 
 function saveDB() {
-  localStorage.setItem('techkitchen_db', JSON.stringify(db));
+  saveDBLocal();
+  pushToCloud();
 }
 
 let db = loadDB();
 if (!db.companies) db.companies = [];
+if (!db.techDocs) db.techDocs = {};
+
+// ============================================================
+// SINCRONIZAÇÃO COM A NUVEM
+// Mantém localStorage como cache rápido/offline; a nuvem (Netlify Blobs)
+// é a fonte de verdade compartilhada entre aparelhos.
+// ============================================================
+let cloudSynced = false;
+
+async function syncFromCloud() {
+  try {
+    const res = await fetch('/.netlify/functions/appdata');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const cloud = await res.json();
+    if (cloud && (cloud.equipment || cloud.companies)) {
+      db = cloud;
+      if (!db.companies) db.companies = [];
+      if (!db.techDocs) db.techDocs = {};
+      if (!db.parts) db.parts = [];
+      if (!db.diagnostics) db.diagnostics = [];
+      saveDBLocal();
+      renderSidebar();
+      if (currentEquipId) renderCurrentTab();
+    }
+    cloudSynced = true;
+  } catch (err) {
+    console.warn('Sincronização com a nuvem falhou, usando dados locais:', err.message);
+  }
+}
+
+function saveDBLocal() {
+  localStorage.setItem('techkitchen_db', JSON.stringify(db));
+}
+
+async function pushToCloud() {
+  try {
+    await fetch('/.netlify/functions/appdata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(db),
+    });
+  } catch (err) {
+    console.warn('Não foi possível salvar na nuvem agora (ficou salvo neste aparelho):', err.message);
+  }
+}
 
 // Seed sample data if empty
 if (db.equipment.length === 0 || db.equipment.length < 5) {
@@ -1698,6 +1757,8 @@ function renderParts() {
     <button class="btn btn-danger btn-sm" onclick="deleteEquip('${equip.id}')">Excluir</button>
   `;
 
+  renderTechDocs(equip);
+
   // Stats
   const parts = db.equipment_parts = db.parts.filter(p => p.equipId === currentEquipId);
   const okCount = parts.filter(p => p.stock === 'ok').length;
@@ -1887,6 +1948,128 @@ function searchPartByCode(code) {
 // ============================================================
 // MODALS
 // ============================================================
+// ============================================================
+// DOCUMENTAÇÃO TÉCNICA (por marca + modelo, compartilhada entre clientes)
+// Guardada na nuvem (espaço separado dos dados de clientes) para funcionar
+// em qualquer aparelho e, futuramente, poder ser oferecida como produto à parte.
+// ============================================================
+const TECHDOC_SLOTS = [
+  { key: 'manual', label: '📘 Manual Técnico' },
+  { key: 'eletrico', label: '⚡ Esquema Elétrico' },
+  { key: 'catalogo', label: '🔩 Catálogo de Peças' },
+];
+
+let techDocsIndex = {};
+let techDocsIndexLoaded = false;
+
+function docKey(equip) {
+  return (equip.brand + '||' + equip.model).toLowerCase().trim();
+}
+
+async function loadTechDocsIndex() {
+  try {
+    const res = await fetch('/.netlify/functions/techdocs?action=list');
+    if (!res.ok) throw new Error('status ' + res.status);
+    techDocsIndex = await res.json();
+    techDocsIndexLoaded = true;
+  } catch (err) {
+    console.warn('Não foi possível carregar o índice de documentos técnicos:', err.message);
+  }
+}
+
+async function renderTechDocs(equip) {
+  const key = docKey(equip);
+  const el = document.getElementById('techDocsSection');
+  el.innerHTML = `<div class="techdocs-box"><div class="techdocs-sub">Carregando documentação técnica…</div></div>`;
+  if (!techDocsIndexLoaded) await loadTechDocsIndex();
+  renderTechDocsUI(equip, key);
+}
+
+function renderTechDocsUI(equip, key) {
+  const el = document.getElementById('techDocsSection');
+  const docs = techDocsIndex[key] || {};
+  el.innerHTML = `
+    <div class="techdocs-box">
+      <h3>📎 Documentação Técnica</h3>
+      <div class="techdocs-sub">Compartilhada por todos os equipamentos ${equip.brand} ${equip.model}, em qualquer cliente e qualquer aparelho</div>
+      <div class="techdocs-grid">
+        ${TECHDOC_SLOTS.map(slot => `
+          <div class="techdoc-slot">
+            <div class="slot-label">${slot.label}</div>
+            ${docs[slot.key] ? `
+              <div class="techdoc-file">
+                <a href="/.netlify/functions/techdocs?action=file&key=${encodeURIComponent(key)}&slotKey=${slot.key}" target="_blank" title="${docs[slot.key].name}">${docs[slot.key].name}</a>
+                <span class="rm" onclick="removeTechDoc('${key}','${slot.key}')" title="Remover">🗑</span>
+              </div>
+            ` : `
+              <label class="techdoc-upload-btn" id="upl_${slot.key}">
+                ⬆ Enviar PDF
+                <input type="file" accept="application/pdf" style="display:none;" onchange="handleTechDocUpload(event,'${key}','${slot.key}')">
+              </label>
+            `}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function handleTechDocUpload(event, key, slotKey) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.type !== 'application/pdf') { showToast('Apenas arquivos PDF são aceitos.', 'error'); return; }
+  if (file.size > 15 * 1024 * 1024) {
+    showToast('PDF muito grande (máx. 15MB).', 'error');
+    return;
+  }
+  const uploadLabel = document.getElementById('upl_' + slotKey);
+  if (uploadLabel) uploadLabel.textContent = '⏳ Enviando...';
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = reader.result.split(',')[1];
+    try {
+      const res = await fetch('/.netlify/functions/techdocs?action=upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, slotKey, fileName: file.name, fileBase64: base64 }),
+      });
+      const result = await res.json();
+      if (!res.ok || result.error) throw new Error(result.error || 'status ' + res.status);
+
+      if (!techDocsIndex[key]) techDocsIndex[key] = {};
+      techDocsIndex[key][slotKey] = { name: file.name };
+      const equip = db.equipment.find(e => e.id === currentEquipId);
+      if (equip) renderTechDocsUI(equip, key);
+      showToast('Documento anexado! ✅', 'success');
+    } catch (err) {
+      showToast('Falha ao enviar documento: ' + err.message, 'error');
+      const equip = db.equipment.find(e => e.id === currentEquipId);
+      if (equip) renderTechDocsUI(equip, key);
+    }
+  };
+  reader.onerror = () => showToast('Erro ao ler o arquivo.', 'error');
+  reader.readAsDataURL(file);
+}
+
+async function removeTechDoc(key, slotKey) {
+  if (!confirm('Remover este documento? Ele deixa de aparecer para todos os equipamentos deste modelo, em todos os aparelhos.')) return;
+  try {
+    const res = await fetch('/.netlify/functions/techdocs?action=delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, slotKey }),
+    });
+    if (!res.ok) throw new Error('status ' + res.status);
+    if (techDocsIndex[key]) delete techDocsIndex[key][slotKey];
+    const equip = db.equipment.find(e => e.id === currentEquipId);
+    if (equip) renderTechDocsUI(equip, key);
+    showToast('Documento removido.', 'success');
+  } catch (err) {
+    showToast('Falha ao remover: ' + err.message, 'error');
+  }
+}
+
 // ============================================================
 // EMPRESAS
 // ============================================================
@@ -2502,6 +2685,7 @@ function showToast(msg, type = 'success') {
 // INIT
 // ============================================================
 renderSidebar();
+syncFromCloud();
 
 // ── PWA INSTALL ─────────────────────────────
 let deferredPrompt = null;
