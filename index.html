@@ -757,6 +757,17 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
           <p>Remove todos os dados e reinicia o banco. Use com cuidado.</p>
           <button class="btn btn-danger btn-sm" onclick="clearAll()">Limpar Tudo</button>
         </div>
+
+        <div class="section-title" style="margin-top:22px;">Marcas</div>
+        <div class="io-card">
+          <h3>🏷 Gerenciar Marcas</h3>
+          <p>Adicione ou remova marcas disponíveis no cadastro de equipamento e na leitura automática de plaqueta.</p>
+          <div id="brandManageList" style="margin:12px 0;"></div>
+          <div class="mini-form">
+            <input type="text" id="newBrandName" placeholder="Nome da nova marca (ex: Electrolux)">
+            <button class="btn btn-primary btn-sm" onclick="addBrand()">+ Adicionar Marca</button>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -796,18 +807,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     <div class="form-grid">
       <div class="form-group">
         <label>Marca</label>
-        <select id="newEquipBrand">
-          <option value="Macom/Hoshizaki">Macom/Hoshizaki</option>
-          <option value="Rational">Rational</option>
-          <option value="Unox">Unox</option>
-          <option value="Pratica/Klimaquip">Pratica/Klimaquip</option>
-          <option value="Turbochef">Turbochef</option>
-          <option value="Menumaster">Menumaster</option>
-          <option value="Tramontina">Tramontina</option>
-          <option value="ITW/Hobart">ITW/Hobart</option>
-          <option value="Vulcan">Vulcan</option>
-          <option value="Wictory">Wictory</option>
-        </select>
+        <select id="newEquipBrand"></select>
       </div>
       <div class="form-group">
         <label>Modelo</label>
@@ -960,7 +960,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 // ============================================================
 // DATA LAYER
 // ============================================================
-const BRANDS = [
+const DEFAULT_BRANDS = [
   { id: 'macom', name: 'Macom/Hoshizaki', color: '#1e40af', bg: '#1d4ed8', abbr: 'MH' },
   { id: 'rational', name: 'Rational', color: '#7c3aed', bg: '#7c3aed', abbr: 'RA' },
   { id: 'unox', name: 'Unox', color: '#0891b2', bg: '#0891b2', abbr: 'UX' },
@@ -970,7 +970,10 @@ const BRANDS = [
   { id: 'tramontina', name: 'Tramontina', color: '#6d28d9', bg: '#6d28d9', abbr: 'TR' },
   { id: 'itw', name: 'ITW/Hobart', color: '#0f766e', bg: '#0f766e', abbr: 'IH' },
   { id: 'vulcan', name: 'Vulcan', color: '#b45309', bg: '#b45309', abbr: 'VU' },
+  { id: 'wictory', name: 'Wictory', color: '#be185d', bg: '#be185d', abbr: 'WC' },
 ];
+const BRAND_COLOR_PALETTE = ['#1d4ed8','#7c3aed','#0891b2','#059669','#dc2626','#d97706','#6d28d9','#0f766e','#b45309','#be185d','#4338ca','#0d9488','#c2410c','#4d7c0f','#a21caf'];
+
 
 function loadDB() {
   try {
@@ -988,6 +991,7 @@ function saveDB() {
 let db = loadDB();
 if (!db.companies) db.companies = [];
 if (!db.techDocs) db.techDocs = {};
+if (!db.brands || db.brands.length === 0) db.brands = DEFAULT_BRANDS.map(b => ({...b}));
 
 // ============================================================
 // SINCRONIZAÇÃO COM A NUVEM
@@ -1652,7 +1656,7 @@ function renderSidebar(filter = '') {
   container.innerHTML = '';
   filter = filter.toLowerCase();
 
-  BRANDS.forEach(brand => {
+  db.brands.forEach(brand => {
     const equipments = db.equipment.filter(e =>
       e.brand === brand.name &&
       (filter === '' || e.model.toLowerCase().includes(filter) || brand.name.toLowerCase().includes(filter))
@@ -1703,12 +1707,61 @@ function selectEquip(id) {
   renderCurrentTab();
 }
 
+// ============================================================
+// MARCAS
+// ============================================================
+function renderBrandManageList() {
+  const el = document.getElementById('brandManageList');
+  if (!el) return;
+  el.innerHTML = db.brands.map(b => {
+    const count = db.equipment.filter(e => e.brand === b.name).length;
+    return `
+      <div class="techdoc-file" style="margin-bottom:6px;">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${b.bg};margin-right:8px;"></span>${b.name} ${count ? `<span style="color:var(--muted);font-size:11px;">(${count} equip.)</span>` : ''}</span>
+        <span class="rm" onclick="deleteBrand('${b.id}')" title="Excluir marca">🗑</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function addBrand() {
+  const input = document.getElementById('newBrandName');
+  const name = input.value.trim();
+  if (!name) { showToast('Informe o nome da marca.', 'error'); return; }
+  if (db.brands.some(b => b.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Essa marca já está cadastrada.', 'error');
+    return;
+  }
+  const color = BRAND_COLOR_PALETTE[db.brands.length % BRAND_COLOR_PALETTE.length];
+  const abbr = name.replace(/[^A-Za-zÀ-ú]/g, '').substring(0, 2).toUpperCase() || '??';
+  db.brands.push({ id: 'b' + Date.now(), name, color, bg: color, abbr });
+  saveDB();
+  input.value = '';
+  renderBrandManageList();
+  showToast('Marca adicionada! ✅', 'success');
+}
+
+function deleteBrand(brandId) {
+  const brand = db.brands.find(b => b.id === brandId);
+  if (!brand) return;
+  const count = db.equipment.filter(e => e.brand === brand.name).length;
+  const msg = count > 0
+    ? `Excluir "${brand.name}"? ${count} equipamento(s) cadastrado(s) com essa marca continuam no sistema, mas ela sai da lista de opções.`
+    : `Excluir a marca "${brand.name}"?`;
+  if (!confirm(msg)) return;
+  db.brands = db.brands.filter(b => b.id !== brandId);
+  saveDB();
+  renderBrandManageList();
+  renderSidebar();
+  showToast('Marca excluída.', 'success');
+}
+
 function renderCurrentTab() {
   if (!currentEquipId) return;
   if (currentTab === 'tabParts') renderParts();
   else if (currentTab === 'tabExploded') renderExploded();
   else if (currentTab === 'tabDiag') renderDiag();
-  else if (currentTab === 'tabSettings') {}
+  else if (currentTab === 'tabSettings') { renderBrandManageList(); }
 }
 
 // ============================================================
@@ -1734,7 +1787,7 @@ function showTab(tabId) {
 // PARTS TAB
 // ============================================================
 function getBrand(equip) {
-  return BRANDS.find(b => b.name === equip.brand) || { abbr: '?', bg: '#555', color: '#fff' };
+  return db.brands.find(b => b.name === equip.brand) || { abbr: '?', bg: '#555', color: '#fff' };
 }
 
 function renderParts() {
@@ -2353,6 +2406,8 @@ function openModal(id) {
     document.getElementById('newDiagDate').value = new Date().toISOString().split('T')[0];
   }
   if (id === 'modalEquip') {
+    document.getElementById('newEquipBrand').innerHTML =
+      db.brands.map(b => `<option value="${b.name}">${b.name}</option>`).join('');
     const compSel = document.getElementById('newEquipCompany');
     compSel.innerHTML = '<option value="">— Não vinculado —</option>' +
       db.companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
