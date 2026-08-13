@@ -1972,7 +1972,10 @@ function renderCompanyDetail() {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <h3>${company.name}</h3>
-      <button class="btn btn-ghost btn-sm" onclick="exportCompanyCSV('${company.id}')">⬇ Exportar CSV</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="exportCompanyCSV('${company.id}')">⬇ Exportar CSV</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:var(--danger);" onclick="deleteCompany('${company.id}')">🗑 Excluir Empresa</button>
+      </div>
     </div>
     <div class="company-tabs">
       <div class="company-tab-btn ${currentCompanyTab==='dados'?'active':''}" onclick="switchCompanyTab('dados')">Dados Gerais</div>
@@ -2003,7 +2006,10 @@ function renderCompanyTabContent() {
     const units = company.units || [];
     el.innerHTML = units.map(u => `
       <div class="unit-card">
-        <h4>${u.name}</h4>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <h4>${u.name}</h4>
+          <span style="cursor:pointer;color:var(--danger);font-size:12px;" onclick="deleteUnit('${u.id}')" title="Excluir unidade">🗑</span>
+        </div>
         <div class="meta">
           ${u.address ? '📍 ' + u.address + '<br>' : ''}
           ${u.responsible ? '👤 ' + u.responsible : ''} ${u.contact ? '· ' + u.contact : ''}
@@ -2076,6 +2082,25 @@ function addUnit() {
   showToast('Unidade adicionada! ✅', 'success');
 }
 
+function deleteUnit(unitId) {
+  const company = getCurrentCompany();
+  const unit = (company.units||[]).find(u => u.id === unitId);
+  if (!unit) return;
+  const linkedCount = db.equipment.filter(e => e.unitId === unitId).length;
+  const msg = linkedCount > 0
+    ? `Excluir a unidade "${unit.name}"? ${linkedCount} equipamento(s) ficarão sem unidade vinculada.`
+    : `Excluir a unidade "${unit.name}"?`;
+  if (!confirm(msg)) return;
+
+  db.equipment.forEach(e => {
+    if (e.unitId === unitId) { e.unitId = null; e.sectorId = null; }
+  });
+  company.units = company.units.filter(u => u.id !== unitId);
+  saveDB();
+  renderCompanyTabContent();
+  showToast('Unidade excluída.', 'success');
+}
+
 function addSector(unitId) {
   const input = document.getElementById('newSector_' + unitId);
   const name = input.value.trim();
@@ -2086,6 +2111,26 @@ function addSector(unitId) {
   unit.sectors.push({ id: 's' + Date.now(), name });
   saveDB();
   renderCompanyTabContent();
+}
+
+function deleteCompany(companyId) {
+  const company = db.companies.find(c => c.id === companyId);
+  if (!company) return;
+  const linkedCount = db.equipment.filter(e => e.companyId === companyId).length;
+  const msg = linkedCount > 0
+    ? `Excluir "${company.name}"? ${linkedCount} equipamento(s) vinculado(s) ficarão sem empresa (não serão apagados).`
+    : `Excluir "${company.name}"? Essa ação não pode ser desfeita.`;
+  if (!confirm(msg)) return;
+
+  db.equipment.forEach(e => {
+    if (e.companyId === companyId) { e.companyId = null; e.unitId = null; e.sectorId = null; }
+  });
+  db.companies = db.companies.filter(c => c.id !== companyId);
+  saveDB();
+  currentCompanyId = null;
+  renderCompanyList();
+  document.getElementById('companyDetailEl').innerHTML = '<div class="empty-hint">Selecione uma empresa à esquerda, ou cadastre uma nova.</div>';
+  showToast('Empresa excluída.', 'success');
 }
 
 function exportCompanyCSV(companyId) {
