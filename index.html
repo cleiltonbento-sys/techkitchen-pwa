@@ -182,6 +182,8 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .techdoc-file a::before { content: '📄'; font-size: 14px; flex-shrink: 0; }
   .techdoc-file .rm { cursor: pointer; color: var(--danger); font-size: 14px; padding: 6px; margin: -6px; flex-shrink: 0; opacity: 0.7; }
   .techdoc-file .rm:active { opacity: 1; }
+  .techdoc-file .shr { cursor: pointer; color: var(--muted); font-size: 15px; padding: 6px; margin: -6px; flex-shrink: 0; opacity: 0.8; }
+  .techdoc-file .shr:active { opacity: 1; color: var(--accent2); }
   .techdoc-upload-btn { display: flex; align-items: center; justify-content: center; gap: 7px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 10px; font-size: 11.5px; color: var(--muted); cursor: pointer; min-height: 40px; margin-top: 6px; }
   .techdoc-upload-btn:hover { border-color: var(--accent); color: var(--accent2); background: rgba(249,115,22,0.05); }
   .techdoc-upload-btn::before { content: '＋'; font-size: 14px; }
@@ -2581,6 +2583,7 @@ function renderTechDocsUI(equip, key) {
                 const efid = encodeURIComponent(f.id), ename = encodeURIComponent(f.name);
                 return `<div class="techdoc-file">
                   <a href="#" onclick="openPdfModal('/.netlify/functions/techdocs?action=file&key=${ek}&slotKey=${esk}&fileId=${efid}',decodeURIComponent('${ename}'));return false;" title="${f.name}">${f.name}</a>
+                  <span class="shr" onclick="shareTechDoc('${key}','${slot.key}','${f.id}',decodeURIComponent('${ename}'))" title="Compartilhar">📤</span>
                   <span class="rm" onclick="removeTechDoc('${key}','${slot.key}','${f.id}')" title="Remover">🗑</span>
                 </div>`;
               }).join('')}
@@ -2684,6 +2687,46 @@ async function removeTechDoc(key, slotKey, fileId) {
   } catch (err) {
     showToast('Falha ao remover: ' + err.message, 'error');
   }
+}
+
+async function shareTechDoc(key, slotKey, fileId, fileName) {
+  const url = window.location.origin +
+    '/.netlify/functions/techdocs?action=file' +
+    '&key=' + encodeURIComponent(key) +
+    '&slotKey=' + encodeURIComponent(slotKey) +
+    '&fileId=' + encodeURIComponent(fileId);
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: fileName, text: '📄 ' + fileName + ' — TechKitchen', url });
+    } catch (e) {
+      if (e.name !== 'AbortError') _copyLink(url);
+    }
+  } else {
+    _copyLink(url);
+  }
+}
+
+function _copyLink(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('Link copiado! 📋', 'success'))
+      .catch(() => _copyLinkFallback(text));
+  } else {
+    _copyLinkFallback(text);
+  }
+}
+
+function _copyLinkFallback(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); showToast('Link copiado! 📋', 'success'); }
+  catch { showToast('Copie o link manualmente.', 'error'); }
+  document.body.removeChild(ta);
 }
 
 // ============================================================
