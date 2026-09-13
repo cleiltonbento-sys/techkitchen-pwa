@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "api/appdata.js": { "maxDuration": 30 },
+    "api/techdocs.js": { "maxDuration": 30 }
+  }
+}
