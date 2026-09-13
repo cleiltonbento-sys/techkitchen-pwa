@@ -1093,13 +1093,22 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
         <input type="text" id="newEquipLine" placeholder="Ex: Forno Combinado, Máquina de Gelo...">
       </div>
       <div class="form-group">
-        <label>Tensão</label>
+        <label>Tensão Elétrica</label>
         <select id="newEquipVoltage">
+          <option value="">— Selecione —</option>
           <option value="110V">110V</option>
-          <option value="220V" selected>220V</option>
+          <option value="220V">220V</option>
           <option value="380V">380V</option>
           <option value="Bivolt">Bivolt</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>Potência</label>
+        <input type="text" id="newEquipPower" placeholder="Ex: 3000W, 1,75kW, Gás">
+      </div>
+      <div class="form-group full">
+        <label>Número de Série</label>
+        <input type="text" id="newEquipSerial" placeholder="Ex: BR2023-04501">
       </div>
       <div class="form-group full">
         <label>Empresa Proprietária <span style="font-weight:400;color:var(--muted);font-size:11px;">(opcional)</span></label>
@@ -2197,7 +2206,9 @@ function renderParts() {
       <h1>${equip.model}</h1>
       <div class="meta">
         <span class="meta-tag">📌 ${equip.brand}</span>
-        <span class="meta-tag">⚡ ${equip.voltage}</span>
+        ${equip.voltage ? `<span class="meta-tag">🔌 ${equip.voltage}</span>` : ''}
+        ${equip.power ? `<span class="meta-tag">⚡ ${equip.power}</span>` : ''}
+        ${equip.serial ? `<span class="meta-tag">🔢 ${equip.serial}</span>` : ''}
         ${equip.line ? `<span class="meta-tag">🍽 ${equip.line}</span>` : ''}
         ${equip.obs ? `<span class="meta-tag">📝 ${equip.obs}</span>` : ''}
       </div>
@@ -2960,13 +2971,15 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 // ============================================================
 // SAVE FUNCTIONS
 // ============================================================
-function fillEquipVoltageSelect(powerText){
+function fillEquipVoltageSelect(voltageText){
   const sel = document.getElementById('newEquipVoltage');
-  const t = (powerText || '').toUpperCase();
+  if (!voltageText) { sel.value = ''; return; }
+  const t = voltageText.toUpperCase().replace(/\s/g, '');
   if (t.includes('380')) sel.value = '380V';
+  else if (t.includes('BIVOLT') || t.includes('BI-VOLT') || (t.includes('110') && t.includes('220'))) sel.value = 'Bivolt';
   else if (t.includes('110') || t.includes('127')) sel.value = '110V';
-  else if (t.includes('BIVOLT')) sel.value = 'Bivolt';
-  else sel.value = '220V';
+  else if (t.includes('220')) sel.value = '220V';
+  else sel.value = '';
 }
 
 function matchBrandOption(brandText){
@@ -3055,12 +3068,9 @@ document.getElementById('plateFileInput').addEventListener('change', async funct
     const brandMatched = matchBrandOption(parsed.brand);
     document.getElementById('newEquipModel').value = parsed.model || '';
     document.getElementById('newEquipLine').value = parsed.category || '';
-    fillEquipVoltageSelect(parsed.power);
-
-    let obsLines = [];
-    if (parsed.serial) obsLines.push('Nº de série: ' + parsed.serial);
-    if (parsed.power) obsLines.push('Potência/Tensão (plaqueta): ' + parsed.power);
-    document.getElementById('newEquipObs').value = obsLines.join('\n');
+    document.getElementById('newEquipSerial').value = parsed.serial || '';
+    document.getElementById('newEquipPower').value = parsed.power || '';
+    fillEquipVoltageSelect(parsed.voltage);
 
     statusEl.textContent = '✅ Plaqueta lida — confira os campos antes de salvar';
     if (!brandMatched && parsed.brand){
@@ -3084,6 +3094,8 @@ function saveEquipment() {
     id: 'e' + Date.now(),
     brand, model,
     line: document.getElementById('newEquipLine').value.trim(),
+    serial: document.getElementById('newEquipSerial').value.trim(),
+    power: document.getElementById('newEquipPower').value.trim(),
     voltage: document.getElementById('newEquipVoltage').value,
     companyId: document.getElementById('newEquipCompany').value || null,
     unitId: document.getElementById('newEquipUnit').value || null,
@@ -3098,6 +3110,9 @@ function saveEquipment() {
   showToast('Equipamento salvo! ✅', 'success');
   document.getElementById('newEquipModel').value = '';
   document.getElementById('newEquipLine').value = '';
+  document.getElementById('newEquipSerial').value = '';
+  document.getElementById('newEquipPower').value = '';
+  document.getElementById('newEquipVoltage').value = '';
   document.getElementById('newEquipObs').value = '';
 }
 
