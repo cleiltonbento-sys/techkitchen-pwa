@@ -48,7 +48,7 @@ exports.handler = async function (event) {
     }
   }
 
-  // ── SERVIR PDF ─────────────────────────────────────────────────────────
+  // ── SERVIR PDF (com suporte a Range requests para arquivos grandes) ────
   if (event.httpMethod === 'GET' && action === 'file') {
     const { key, slotKey, fileId } = params;
     if (!key || !slotKey) return { statusCode: 400, body: 'Parâmetros ausentes' };
@@ -59,14 +59,36 @@ exports.handler = async function (event) {
         : `${key}::${slotKey}`;
       const blob = await fileStore().get(blobKey, { type: 'arrayBuffer' });
       if (!blob) return { statusCode: 404, body: 'Documento não encontrado' };
+
+      const buf = Buffer.from(blob);
+      const totalBytes = buf.length;
+
+      // Suporte a Range requests (PDF.js usa para carregar PDFs grandes em partes)
+      const reqHeaders = event.headers || {};
+      const rangeHeader = reqHeaders['range'] || reqHeaders['Range'] || '';
+      let start = 0, end = totalBytes - 1, statusCode = 200;
+
+      if (rangeHeader) {
+        const m = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (m) {
+          start = parseInt(m[1], 10);
+          end = m[2] ? Math.min(parseInt(m[2], 10), totalBytes - 1) : totalBytes - 1;
+          statusCode = 206;
+        }
+      }
+
+      const slice = buf.slice(start, end + 1);
       return {
-        statusCode: 200,
+        statusCode,
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': 'inline',
+          'Accept-Ranges': 'bytes',
+          'Content-Range': `bytes ${start}-${end}/${totalBytes}`,
+          'Content-Length': String(slice.length),
           'Cache-Control': 'public, max-age=3600',
         },
-        body: Buffer.from(blob).toString('base64'),
+        body: slice.toString('base64'),
         isBase64Encoded: true,
       };
     } catch (err) {
