@@ -695,11 +695,44 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     white-space: nowrap;
     flex: 1;
   }
-  #pdfModal iframe {
-    flex: 1;
+  .pdf-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: #ccc;
+  }
+  .pdf-nav button {
+    background: #333;
+    color: #fff;
     border: none;
-    width: 100%;
-    background: #fff;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 36px;
+  }
+  .pdf-nav button:disabled { opacity: 0.35; cursor: default; }
+  .pdf-nav button:hover:not(:disabled) { background: #444; }
+  #pdfPageInfo { font-weight: 600; min-width: 60px; text-align: center; }
+  #pdfStatus { color: #888; font-size: 12px; margin-left: auto; }
+  .pdf-canvas-wrap {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #666;
+    display: flex;
+    justify-content: center;
+    padding: 12px 0;
+  }
+  #pdfCanvas {
+    display: block;
+    box-shadow: 0 2px 12px #0006;
+    max-width: 100%;
   }
 
   /* ── BOTÃO VOLTAR MOBILE ─────────────────────────────── */
@@ -909,7 +942,15 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     <button onclick="closePdfModal()">← Voltar</button>
     <span class="pdf-title" id="pdfModalTitle">Documento</span>
   </div>
-  <iframe id="pdfModalFrame" src="" title="PDF"></iframe>
+  <div class="pdf-nav">
+    <button id="pdfPrevBtn" onclick="pdfPrevPage()" disabled>&#9664;</button>
+    <span id="pdfPageInfo">— / —</span>
+    <button id="pdfNextBtn" onclick="pdfNextPage()" disabled>&#9654;</button>
+    <span id="pdfStatus">Aguardando…</span>
+  </div>
+  <div class="pdf-canvas-wrap">
+    <canvas id="pdfCanvas"></canvas>
+  </div>
 </div>
 
 <!-- MODAL: Novo Equipamento -->
@@ -1842,17 +1883,72 @@ function goBackToList() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function openPdfModal(url, name) {
-  document.getElementById('pdfModalFrame').src = url;
-  document.getElementById('pdfModalTitle').textContent = name || 'Documento';
+// ── PDF.js viewer (funciona em iOS PWA) ──────────────────────
+const PDFJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let _pdfJsReady = false, _curPdf = null, _curPage = 1, _totPages = 0;
+
+async function _loadPdfJs() {
+  if (_pdfJsReady) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = PDFJS_CDN;
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; _pdfJsReady = true; res(); };
+    s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function openPdfModal(url, name) {
+  document.getElementById('pdfModalTitle').textContent = decodeURIComponent(name || 'Documento');
+  document.getElementById('pdfStatus').textContent = 'Carregando…';
+  document.getElementById('pdfPageInfo').textContent = '— / —';
+  document.getElementById('pdfPrevBtn').disabled = true;
+  document.getElementById('pdfNextBtn').disabled = true;
   document.getElementById('pdfModal').classList.add('open');
   document.body.style.overflow = 'hidden';
+  try {
+    await _loadPdfJs();
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const buf = await resp.arrayBuffer();
+    _curPdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    _totPages = _curPdf.numPages;
+    _curPage = 1;
+    _pdfUpdateNav();
+    await _pdfRender(_curPage);
+  } catch(e) {
+    document.getElementById('pdfStatus').textContent = 'Erro: ' + e.message;
+  }
 }
+
+async function _pdfRender(n) {
+  if (!_curPdf) return;
+  document.getElementById('pdfStatus').textContent = 'Página ' + n + ' de ' + _totPages;
+  const page = await _curPdf.getPage(n);
+  const wrap = document.querySelector('.pdf-canvas-wrap');
+  const scale = (wrap.offsetWidth - 24) / page.getViewport({ scale: 1 }).width;
+  const vp = page.getViewport({ scale });
+  const canvas = document.getElementById('pdfCanvas');
+  canvas.width = vp.width; canvas.height = vp.height;
+  canvas.style.width = vp.width + 'px'; canvas.style.height = vp.height + 'px';
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  wrap.scrollTop = 0;
+}
+
+function _pdfUpdateNav() {
+  document.getElementById('pdfPageInfo').textContent = _curPage + ' / ' + _totPages;
+  document.getElementById('pdfPrevBtn').disabled = _curPage <= 1;
+  document.getElementById('pdfNextBtn').disabled = _curPage >= _totPages;
+}
+
+function pdfPrevPage() { if (_curPage > 1) { _curPage--; _pdfUpdateNav(); _pdfRender(_curPage); } }
+function pdfNextPage() { if (_curPage < _totPages) { _curPage++; _pdfUpdateNav(); _pdfRender(_curPage); } }
 
 function closePdfModal() {
   document.getElementById('pdfModal').classList.remove('open');
-  document.getElementById('pdfModalFrame').src = '';
   document.body.style.overflow = '';
+  _curPdf = null; _curPage = 1; _totPages = 0;
 }
 
 
