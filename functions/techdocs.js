@@ -4,113 +4,152 @@
 // o "produto" acessível por qualquer técnico que use o app, sem expor
 // nada sobre os clientes de ninguém.
 //
-// Netlify Functions v2 + @netlify/blobs v7+
-// O `context` precisa ser passado para getStore funcionar corretamente.
+// Estrutura do índice (techdocs-index / "index"):
+//   { "<marca>::<modelo>": { "<slotKey>": [{ id, name, updatedAt }] } }
+//
+// Estrutura dos arquivos (techdocs-files):
+//   "<marca>::<modelo>::<slotKey>::<fileId>"  → buffer do PDF
+//   "<marca>::<modelo>::<slotKey>::<fileId>::chunk::<n>"  → chunk temporário
+//
+// Compatibilidade com formato antigo ({ name, updatedAt } em vez de array):
+//   normalizeSlot() converte automaticamente ao ler.
 
-import { getStore } from '@netlify/blobs';
+const { getStore } = require('@netlify/blobs');
 
-export default async (req, context) => {
-  const url = new URL(req.url);
-  const action = url.searchParams.get('action');
+function indexStore() { return getStore('techdocs-index'); }
+function fileStore()  { return getStore('techdocs-files'); }
 
-  function indexStore() {
-    return getStore({ name: 'techdocs-index', context });
-  }
-  function fileStore() {
-    return getStore({ name: 'techdocs-files', context });
-  }
+// Garante que um slot do índice seja sempre um array
+function normalizeSlot(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  // Formato antigo: { name, updatedAt }
+  return [{ id: 'legacy', name: val.name, updatedAt: val.updatedAt || '' }];
+}
 
-  // Lista o índice de documentos disponíveis (metadados só, sem o PDF em si)
-  if (req.method === 'GET' && action === 'list') {
+exports.handler = async function (event) {
+  const params = event.queryStringParameters || {};
+  const action = params.action;
+
+  // ── LISTAR índice completo ──────────────────────────────────────────────
+  if (event.httpMethod === 'GET' && action === 'list') {
     try {
-      const idx = await indexStore().get('index', { type: 'json' });
-      return new Response(JSON.stringify(idx || {}), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const raw = (await indexStore().get('index', { type: 'json' })) || {};
+      const out = {};
+      for (const [k, slots] of Object.entries(raw)) {
+        out[k] = {};
+        for (const [sk, val] of Object.entries(slots)) {
+          out[k][sk] = normalizeSlot(val);
+        }
+      }
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) };
     } catch (err) {
-      return new Response(
-        JSON.stringify({ error: 'Falha ao listar documentos: ' + err.message }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return { statusCode: 500, body: JSON.stringify({ error: 'Falha ao listar: ' + err.message }) };
     }
   }
 
-  // Serve o PDF em si, para visualizar/baixar
-  if (req.method === 'GET' && action === 'file') {
-    const key = url.searchParams.get('key');
-    const slotKey = url.searchParams.get('slotKey');
-    if (!key || !slotKey) {
-      return new Response('Parâmetros ausentes', { status: 400 });
-    }
+  // ── SERVIR PDF ─────────────────────────────────────────────────────────
+  if (event.httpMethod === 'GET' && action === 'file') {
+    const { key, slotKey, fileId } = params;
+    if (!key || !slotKey) return { statusCode: 400, body: 'Parâmetros ausentes' };
     try {
-      const blob = await fileStore().get(`${key}::${slotKey}`, { type: 'arrayBuffer' });
-      if (!blob) return new Response('Documento não encontrado', { status: 404 });
-      return new Response(blob, {
-        status: 200,
+      // Suporta chave antiga (sem fileId) e nova (com fileId)
+      const blobKey = fileId && fileId !== 'legacy'
+        ? `${key}::${slotKey}::${fileId}`
+        : `${key}::${slotKey}`;
+      const blob = await fileStore().get(blobKey, { type: 'arrayBuffer' });
+      if (!blob) return { statusCode: 404, body: 'Documento não encontrado' };
+      return {
+        statusCode: 200,
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': 'inline',
           'Cache-Control': 'public, max-age=3600',
         },
-      });
+        body: Buffer.from(blob).toString('base64'),
+        isBase64Encoded: true,
+      };
     } catch (err) {
-      return new Response('Falha ao carregar documento: ' + err.message, { status: 500 });
+      return { statusCode: 500, body: 'Falha ao carregar: ' + err.message };
     }
   }
 
-  // Recebe upload de um novo PDF
-  if (req.method === 'POST' && action === 'upload') {
+  // ── UPLOAD DE CHUNK ────────────────────────────────────────────────────
+  // Cada chunk chega como base64 (≤4MB base64 ≈ 3MB raw, dentro do limite de 6MB da função)
+  if (event.httpMethod === 'POST' && action === 'upload-chunk') {
     try {
-      const { key, slotKey, fileName, fileBase64 } = await req.json();
-      if (!key || !slotKey || !fileBase64) {
-        return new Response(
-          JSON.stringify({ error: 'Dados incompletos' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        );
+      const { key, slotKey, fileId, chunkIndex, chunkData } = JSON.parse(event.body);
+      if (!key || !slotKey || !fileId || chunkData === undefined || chunkIndex === undefined) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Dados incompletos' }) };
       }
-      const buffer = Buffer.from(fileBase64, 'base64');
-      await fileStore().set(`${key}::${slotKey}`, buffer);
+      const buf = Buffer.from(chunkData, 'base64');
+      await fileStore().set(`${key}::${slotKey}::${fileId}::chunk::${chunkIndex}`, buf);
+      return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+    } catch (err) {
+      return { statusCode: 500, body: JSON.stringify({ error: 'Falha ao enviar chunk: ' + err.message }) };
+    }
+  }
 
+  // ── FINALIZAR UPLOAD (junta chunks e salva o PDF final) ─────────────────
+  if (event.httpMethod === 'POST' && action === 'finalize') {
+    try {
+      const { key, slotKey, fileId, totalChunks, fileName } = JSON.parse(event.body);
+      if (!key || !slotKey || !fileId || !totalChunks || !fileName) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Dados incompletos' }) };
+      }
+
+      // Lê e concatena todos os chunks
+      const parts = [];
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = await fileStore().get(`${key}::${slotKey}::${fileId}::chunk::${i}`, { type: 'arrayBuffer' });
+        if (!chunk) throw new Error(`Chunk ${i} não encontrado`);
+        parts.push(Buffer.from(chunk));
+        // Apaga o chunk temporário
+        await fileStore().delete(`${key}::${slotKey}::${fileId}::chunk::${i}`);
+      }
+      const finalBuf = Buffer.concat(parts);
+      await fileStore().set(`${key}::${slotKey}::${fileId}`, finalBuf);
+
+      // Atualiza o índice
       const idx = (await indexStore().get('index', { type: 'json' })) || {};
       if (!idx[key]) idx[key] = {};
-      idx[key][slotKey] = { name: fileName, updatedAt: new Date().toISOString() };
+      const slot = normalizeSlot(idx[key][slotKey]);
+      slot.push({ id: fileId, name: fileName, updatedAt: new Date().toISOString() });
+      idx[key][slotKey] = slot;
       await indexStore().setJSON('index', idx);
 
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return { statusCode: 200, body: JSON.stringify({ ok: true }) };
     } catch (err) {
-      return new Response(
-        JSON.stringify({ error: 'Falha ao enviar documento: ' + err.message }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return { statusCode: 500, body: JSON.stringify({ error: 'Falha ao finalizar: ' + err.message }) };
     }
   }
 
-  // Remove um documento
-  if (req.method === 'POST' && action === 'delete') {
+  // ── REMOVER documento específico ───────────────────────────────────────
+  if (event.httpMethod === 'POST' && action === 'delete') {
     try {
-      const { key, slotKey } = await req.json();
-      await fileStore().delete(`${key}::${slotKey}`);
+      const { key, slotKey, fileId } = JSON.parse(event.body);
+      const blobKey = fileId && fileId !== 'legacy'
+        ? `${key}::${slotKey}::${fileId}`
+        : `${key}::${slotKey}`;
+      await fileStore().delete(blobKey);
+
       const idx = (await indexStore().get('index', { type: 'json' })) || {};
-      if (idx[key]) delete idx[key][slotKey];
+      if (idx[key] && idx[key][slotKey]) {
+        const slot = normalizeSlot(idx[key][slotKey]);
+        const updated = slot.filter(f => f.id !== fileId);
+        if (updated.length === 0) {
+          delete idx[key][slotKey];
+        } else {
+          idx[key][slotKey] = updated;
+        }
+        if (Object.keys(idx[key]).length === 0) delete idx[key];
+      }
       await indexStore().setJSON('index', idx);
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return { statusCode: 200, body: JSON.stringify({ ok: true }) };
     } catch (err) {
-      return new Response(
-        JSON.stringify({ error: 'Falha ao remover documento: ' + err.message }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return { statusCode: 500, body: JSON.stringify({ error: 'Falha ao remover: ' + err.message }) };
     }
   }
 
-  return new Response(
-    JSON.stringify({ error: 'Ação inválida' }),
-    { status: 400, headers: { 'Content-Type': 'application/json' } }
-  );
+  return { statusCode: 400, body: JSON.stringify({ error: 'Ação inválida' }) };
 };
