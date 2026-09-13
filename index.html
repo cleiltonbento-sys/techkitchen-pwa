@@ -46,7 +46,32 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     z-index: 98;
   }
   #pwaBar .pwa-btn { background:#fff; color:var(--accent); border:none; border-radius:6px; padding:6px 14px; font-weight:700; font-size:13px; cursor:pointer; }
-  #pwaBar .pwa-close { background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer; line-height:1; }
+  #pwaBar .pwa-close { background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer; line-height:1; padding:4px 6px; }
+
+  #iosInstall {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(6,8,13,0.7);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #iosInstall.open { display: flex; }
+  #iosInstall .ios-sheet {
+    width: 100%;
+    max-width: 480px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px 18px 0 0;
+    padding: 22px 20px calc(24px + env(safe-area-inset-bottom));
+  }
+  #iosInstall h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  #iosInstall p { font-size: 13.5px; line-height: 1.6; color: #9aa3b2; margin-bottom: 14px; }
+  #iosInstall ol { margin: 0 0 16px 18px; padding: 0; }
+  #iosInstall li { font-size: 14px; line-height: 1.7; color: var(--text); margin-bottom: 6px; }
+  #iosInstall .ios-glyph { color: var(--accent2); font-weight: 700; }
+  #iosInstall .ios-note { font-size: 12.5px; color: var(--muted); }
 
   @media (max-width: 700px) {
     .layout { flex-direction: column; height: auto; min-height: calc(100vh - 60px); }
@@ -647,10 +672,25 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
 <!-- Barra PWA -->
 <div id="pwaBar">
-  <span>📲 Adicione à tela inicial para usar como app!</span>
+  <span id="pwaBarText">📲 Adicione à tela inicial para usar como app!</span>
   <div style="display:flex;gap:8px;align-items:center">
-    <button class="pwa-btn" onclick="installPWA()">Instalar</button>
-    <button class="pwa-close" onclick="document.getElementById('pwaBar').style.display='none'">✕</button>
+    <button class="pwa-btn" id="pwaBarBtn" onclick="installPWA()">Instalar</button>
+    <button class="pwa-close" onclick="dismissPWABar()">✕</button>
+  </div>
+</div>
+
+<!-- Instruções de instalação no iOS (Safari não tem prompt de instalação) -->
+<div id="iosInstall">
+  <div class="ios-sheet">
+    <h3>Instalar no iPhone</h3>
+    <p>No iPhone e iPad a instalação é feita pelo <strong>Safari</strong> — Chrome e Firefox não conseguem adicionar o app à tela de início.</p>
+    <ol>
+      <li>Toque em <strong>Compartilhar</strong> <span class="ios-glyph">⇪</span> na barra inferior do Safari</li>
+      <li>Role a lista e toque em <strong>Adicionar à Tela de Início</strong></li>
+      <li>Confirme em <strong>Adicionar</strong>, no canto superior direito</li>
+    </ol>
+    <p class="ios-note">O TechKitchen abre em tela cheia e continua funcionando offline, com os dados que já estão no aparelho.</p>
+    <button class="btn btn-primary" style="width:100%" onclick="closeIOSInstall()">Entendi</button>
   </div>
 </div>
 <div class="layout">
@@ -2749,6 +2789,17 @@ window.addEventListener('beforeinstallprompt', e => {
   deferredPrompt = e;
   document.getElementById('pwaBar').style.display = 'flex';
 });
+// iPadOS moderno se identifica como Mac: checa also maxTouchPoints
+const isIOSDevice = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function openIOSInstall() { document.getElementById('iosInstall').classList.add('open'); }
+function closeIOSInstall() { document.getElementById('iosInstall').classList.remove('open'); }
+function dismissPWABar() {
+  document.getElementById('pwaBar').style.display = 'none';
+  try { localStorage.setItem('tk_pwabar_dismissed', '1'); } catch (e) {}
+}
+
 function installPWA() {
   if (deferredPrompt) {
     deferredPrompt.prompt();
@@ -2756,14 +2807,10 @@ function installPWA() {
       deferredPrompt = null;
       document.getElementById('pwaBar').style.display = 'none';
     });
+  } else if (isIOSDevice) {
+    openIOSInstall();
   } else {
-    // iOS Safari: instrução manual
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    if (isIOS) {
-      alert('No iPhone/iPad (Safari):\n\n1. Toque no botão Compartilhar (□↑) na barra inferior\n2. Role para baixo e toque em "Adicionar à Tela de Início"\n3. Toque em "Adicionar" no canto superior direito\n\n✅ O app aparecerá na sua tela inicial!');
-    } else {
-      alert('Para instalar:\n\nNo Chrome Android: toque nos 3 pontos (⋮) > "Adicionar à tela inicial"\n\nNo Samsung Internet: toque em ≡ > "Adicionar página a" > "Tela inicial"');
-    }
+    alert('Para instalar:\n\nNo Chrome Android: toque nos 3 pontos (⋮) > "Adicionar à tela inicial"\n\nNo Samsung Internet: toque em ≡ > "Adicionar página a" > "Tela inicial"');
   }
 }
 window.addEventListener('appinstalled', () => {
@@ -2773,9 +2820,19 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Mostrar barra no mobile mesmo sem prompt (para iOS)
-if (/iphone|ipad|ipod|android/i.test(navigator.userAgent)) {
+if (/iphone|ipad|ipod|android/i.test(navigator.userAgent) || isIOSDevice) {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-  if (!isStandalone) {
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('tk_pwabar_dismissed') === '1'; } catch (e) {}
+  if (!isStandalone && !dismissed) {
+    // No iOS o texto da barra explica o caminho real do Safari
+    if (isIOSDevice) {
+      const isSafari = /^((?!chrome|crios|fxios|edgios|opr).)*safari/i.test(navigator.userAgent);
+      document.getElementById('pwaBarText').textContent = isSafari
+        ? '📲 Instale na tela de início pelo menu Compartilhar'
+        : '📲 Para instalar no iPhone, abra este site no Safari';
+      document.getElementById('pwaBarBtn').textContent = 'Como instalar';
+    }
     setTimeout(() => {
       const bar = document.getElementById('pwaBar');
       if (bar) bar.style.display = 'flex';
