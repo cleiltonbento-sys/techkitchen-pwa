@@ -177,11 +177,14 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .techdocs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
   .techdoc-slot { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
   .techdoc-slot .slot-label { font-size: 11.5px; color: var(--text-dim,#9aa2a9); font-weight: 600; margin-bottom: 8px; display:flex; align-items:center; gap:6px; }
-  .techdoc-file { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
-  .techdoc-file a { color: var(--accent2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
-  .techdoc-file .rm { cursor: pointer; color: var(--danger); font-size: 12px; margin-left: 8px; }
-  .techdoc-upload-btn { display: block; text-align: center; border: 1.5px dashed var(--border); border-radius: 8px; padding: 10px; font-size: 11.5px; color: var(--muted); cursor: pointer; }
-  .techdoc-upload-btn:hover { border-color: var(--accent); color: var(--accent2); }
+  .techdoc-file { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; gap: 8px; }
+  .techdoc-file a { color: var(--accent2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-weight: 500; display: flex; align-items: center; gap: 6px; min-height: 36px; }
+  .techdoc-file a::before { content: '📄'; font-size: 14px; flex-shrink: 0; }
+  .techdoc-file .rm { cursor: pointer; color: var(--danger); font-size: 14px; padding: 6px; margin: -6px; flex-shrink: 0; opacity: 0.7; }
+  .techdoc-file .rm:active { opacity: 1; }
+  .techdoc-upload-btn { display: flex; align-items: center; justify-content: center; gap: 7px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 12px; font-size: 12px; color: var(--muted); cursor: pointer; min-height: 44px; }
+  .techdoc-upload-btn:hover { border-color: var(--accent); color: var(--accent2); background: rgba(249,115,22,0.05); }
+  .techdoc-upload-btn::before { content: '＋'; font-size: 15px; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -656,85 +659,179 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .no-select { user-select: none; }
 
   /* ── PDF VIEWER MODAL ────────────────────────────────── */
+  /* Abordagem: posicionamento absoluto (mais confiável que flexbox no iOS PWA) */
+  :root {
+    --pdf-header-h: 52px;
+    --pdf-nav-h: 62px;
+  }
   #pdfModal {
     display: none;
     position: fixed;
-    inset: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     z-index: 9999;
-    background: #000;
-    flex-direction: column;
+    background: #080a0d;
   }
-  #pdfModal.open { display: flex; }
+  #pdfModal.open { display: block; }
+
+  /* Cabeçalho: ancorado no topo, respeita safe-area */
   #pdfModal .pdf-header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: calc(var(--pdf-header-h) + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    background: #111;
-    border-bottom: 1px solid #333;
-    flex-shrink: 0;
+    gap: 10px;
+    padding-left: 14px;
+    padding-right: 14px;
+    background: #111418;
+    border-bottom: 1px solid rgba(249,115,22,0.20);
+    z-index: 2;
+    box-sizing: border-box;
   }
-  #pdfModal .pdf-header button {
-    background: #333;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 7px 14px;
-    font-size: 14px;
+  .pdf-back-btn {
+    background: rgba(249,115,22,0.15);
+    color: #f97316;
+    border: 1px solid rgba(249,115,22,0.30);
+    border-radius: 10px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
+    height: 38px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
   }
-  #pdfModal .pdf-header button:hover { background: #444; }
-  #pdfModal .pdf-title {
+  .pdf-back-btn:active { background: rgba(249,115,22,0.30); }
+  #pdfModalTitle {
     font-size: 13px;
-    color: #ccc;
+    font-weight: 500;
+    color: #7a8499;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
   }
+
+  /* Canvas area: ocupa o espaço entre header e nav */
   .pdf-canvas-wrap {
-    flex: 1;
+    position: absolute;
+    top: calc(var(--pdf-header-h) + env(safe-area-inset-top));
+    bottom: calc(var(--pdf-nav-h) + env(safe-area-inset-bottom));
+    left: 0; right: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background: #555;
+    background: #3a3d42;
     display: flex;
-    justify-content: center;
-    padding: 12px 0;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    gap: 10px;
   }
   #pdfCanvas {
     display: block;
-    box-shadow: 0 2px 12px #0006;
-    max-width: 100%;
+    border-radius: 3px;
+    box-shadow: 0 6px 32px rgba(0,0,0,0.55);
   }
+
+  /* Loading spinner */
+  .pdf-loading-overlay {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: #7a8499;
+    font-size: 13px;
+    padding: 60px 0;
+    width: 100%;
+  }
+  .pdf-loading-overlay.show { display: flex; }
+  .pdf-spinner {
+    width: 30px; height: 30px;
+    border: 2.5px solid #2a2d33;
+    border-top-color: #f97316;
+    border-radius: 50%;
+    animation: pdfSpin 0.75s linear infinite;
+  }
+  @keyframes pdfSpin { to { transform: rotate(360deg); } }
+
+  /* Barra de nav: ancorada no rodapé, respeita safe-area */
   .pdf-nav {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: calc(var(--pdf-nav-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    background: #111;
-    border-top: 1px solid #333;
-    flex-shrink: 0;
-    font-size: 13px;
-    color: #ccc;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    gap: 8px;
+    padding-left: 12px;
+    padding-right: 12px;
+    background: #111418;
+    border-top: 1px solid #1e2230;
+    z-index: 2;
+    box-sizing: border-box;
   }
-  .pdf-nav button {
-    background: #333;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 18px;
-    font-size: 18px;
+  .pdf-nav-btn {
+    background: #1e2230;
+    color: #c8cdd8;
+    border: 1px solid #2a2f45;
+    border-radius: 10px;
+    font-size: 16px;
     cursor: pointer;
-    min-width: 48px;
-    min-height: 44px;
+    width: 44px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s;
   }
-  .pdf-nav button:disabled { opacity: 0.35; cursor: default; }
-  #pdfPageInfo { font-weight: 600; min-width: 70px; text-align: center; font-size: 14px; }
-  #pdfStatus { color: #888; font-size: 12px; margin-left: auto; }
+  .pdf-nav-btn:active { background: #2a2f45; }
+  .pdf-nav-btn:disabled { opacity: 0.28; cursor: default; }
+  #pdfPageInfo {
+    font-weight: 600;
+    font-size: 13px;
+    color: #c8cdd8;
+    min-width: 64px;
+    text-align: center;
+    background: #1a1e28;
+    border: 1px solid #2a2f45;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Zoom */
+  .pdf-zoom-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+  #pdfZoomLabel {
+    font-size: 11px;
+    color: #4b5263;
+    min-width: 36px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .pdf-zoom-btn {
+    background: #1a1e28;
+    color: #c8cdd8;
+    border: 1px solid #2a2f45;
+    border-radius: 8px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pdf-zoom-btn:active { background: #2a2f45; }
 
   /* ── BOTÃO VOLTAR MOBILE ─────────────────────────────── */
   .mobile-back {
@@ -947,17 +1044,26 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 <!-- MODAL: Visualizador de PDF -->
 <div id="pdfModal">
   <div class="pdf-header">
-    <button onclick="closePdfModal()">← Voltar</button>
-    <span class="pdf-title" id="pdfModalTitle">Documento</span>
+    <button class="pdf-back-btn" onclick="closePdfModal()">&#8592; Voltar</button>
+    <span id="pdfModalTitle">Documento</span>
   </div>
   <div class="pdf-canvas-wrap" id="pdfCanvasWrap">
+    <div class="pdf-loading-overlay" id="pdfLoading">
+      <div class="pdf-spinner"></div>
+      <span>Carregando documento…</span>
+    </div>
     <canvas id="pdfCanvas"></canvas>
   </div>
   <div class="pdf-nav">
-    <button id="pdfPrevBtn" onclick="pdfPrevPage()" disabled>&#9664;</button>
+    <button class="pdf-nav-btn" id="pdfPrevBtn" onclick="pdfPrevPage()" disabled>&#9664;</button>
     <span id="pdfPageInfo">— / —</span>
-    <button id="pdfNextBtn" onclick="pdfNextPage()" disabled>&#9654;</button>
-    <span id="pdfStatus">Aguardando…</span>
+    <button class="pdf-nav-btn" id="pdfNextBtn" onclick="pdfNextPage()" disabled>&#9654;</button>
+    <span id="pdfStatus"></span>
+    <div class="pdf-zoom-group">
+      <button class="pdf-zoom-btn" onclick="pdfZoomOut()">−</button>
+      <span id="pdfZoomLabel">100%</span>
+      <button class="pdf-zoom-btn" onclick="pdfZoomIn()">+</button>
+    </div>
   </div>
 </div>
 
@@ -1895,7 +2001,7 @@ function goBackToList() {
 /* ── PDF.js viewer ───────────────────────────────────────── */
 const PDFJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-let _pdfJsReady = false, _curPdf = null, _curPage = 1, _totPages = 0;
+let _pdfJsReady = false, _curPdf = null, _curPage = 1, _totPages = 0, _curZoom = 1.0;
 
 async function _loadPdfJs() {
   if (_pdfJsReady) return;
@@ -1914,10 +2020,15 @@ async function _loadPdfJs() {
 
 async function openPdfModal(url, name) {
   document.getElementById('pdfModalTitle').textContent = name || 'Documento';
-  document.getElementById('pdfStatus').textContent = 'Carregando…';
   document.getElementById('pdfPageInfo').textContent = '— / —';
+  document.getElementById('pdfStatus').textContent = '';
   document.getElementById('pdfPrevBtn').disabled = true;
   document.getElementById('pdfNextBtn').disabled = true;
+  _curZoom = 1.0;
+  document.getElementById('pdfZoomLabel').textContent = '100%';
+  // Mostrar loading e esconder canvas anterior
+  document.getElementById('pdfLoading').classList.add('show');
+  document.getElementById('pdfCanvas').style.display = 'none';
   document.getElementById('pdfModal').classList.add('open');
   document.body.style.overflow = 'hidden';
   try {
@@ -1930,8 +2041,10 @@ async function openPdfModal(url, name) {
     _curPage = 1;
     _pdfUpdateNav();
     await _pdfRender(_curPage);
-    document.getElementById('pdfStatus').textContent = '';
+    document.getElementById('pdfLoading').classList.remove('show');
+    document.getElementById('pdfCanvas').style.display = 'block';
   } catch (err) {
+    document.getElementById('pdfLoading').classList.remove('show');
     document.getElementById('pdfStatus').textContent = 'Erro: ' + err.message;
   }
 }
@@ -1939,13 +2052,30 @@ async function openPdfModal(url, name) {
 async function _pdfRender(n) {
   const page = await _curPdf.getPage(n);
   const wrap = document.getElementById('pdfCanvasWrap');
-  const scale = Math.min((wrap.clientWidth - 24) / page.getViewport({ scale: 1 }).width, 3);
-  const vp = page.getViewport({ scale });
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = (wrap.clientWidth - 24) * _curZoom;
+  const baseScale = cssWidth / page.getViewport({ scale: 1 }).width;
+  // Renderiza na resolução física real (Retina/3x) para máxima nitidez
+  const vp = page.getViewport({ scale: baseScale * dpr });
   const canvas = document.getElementById('pdfCanvas');
   canvas.width = vp.width;
   canvas.height = vp.height;
+  // Tamanho CSS = pixels lógicos (não físicos) — mantém proporção na tela
+  canvas.style.width  = cssWidth + 'px';
+  canvas.style.height = Math.round(vp.height / dpr) + 'px';
   await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
   wrap.scrollTop = 0;
+}
+
+function pdfZoomIn() {
+  _curZoom = Math.min(3.0, parseFloat((_curZoom + 0.25).toFixed(2)));
+  document.getElementById('pdfZoomLabel').textContent = Math.round(_curZoom * 100) + '%';
+  if (_curPdf) _pdfRender(_curPage);
+}
+function pdfZoomOut() {
+  _curZoom = Math.max(0.5, parseFloat((_curZoom - 0.25).toFixed(2)));
+  document.getElementById('pdfZoomLabel').textContent = Math.round(_curZoom * 100) + '%';
+  if (_curPdf) _pdfRender(_curPage);
 }
 
 function pdfPrevPage() {
@@ -1963,10 +2093,13 @@ function closePdfModal() {
   document.getElementById('pdfModal').classList.remove('open');
   document.body.style.overflow = '';
   _curPdf = null; _curPage = 1; _totPages = 0;
-  document.getElementById('pdfCanvas').width = 0;
-  document.getElementById('pdfCanvas').height = 0;
-  document.getElementById('pdfStatus').textContent = 'Aguardando…';
+  const c = document.getElementById('pdfCanvas');
+  c.width = 0; c.height = 0; c.style.display = 'none';
+  document.getElementById('pdfLoading').classList.remove('show');
+  document.getElementById('pdfStatus').textContent = '';
   document.getElementById('pdfPageInfo').textContent = '— / —';
+  _curZoom = 1.0;
+  document.getElementById('pdfZoomLabel').textContent = '100%';
 }
 
 // ============================================================
