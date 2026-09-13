@@ -654,6 +654,76 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .io-card p { color: var(--muted); font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
 
   .no-select { user-select: none; }
+
+  /* ── PDF VIEWER MODAL ────────────────────────────────── */
+  #pdfModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #000;
+    flex-direction: column;
+  }
+  #pdfModal.open { display: flex; }
+  #pdfModal .pdf-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #111;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+  }
+  #pdfModal .pdf-header button {
+    background: #333;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #pdfModal .pdf-header button:hover { background: #444; }
+  #pdfModal .pdf-title {
+    font-size: 13px;
+    color: #ccc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  #pdfModal iframe {
+    flex: 1;
+    border: none;
+    width: 100%;
+    background: #fff;
+  }
+
+  /* ── BOTÃO VOLTAR MOBILE ─────────────────────────────── */
+  .mobile-back {
+    display: none;
+  }
+  @media (max-width: 700px) {
+    .mobile-back {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px 4px;
+      color: var(--accent2);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+    }
+    .mobile-back:hover { opacity: 0.8; }
+  }
+
 </style>
 </head>
 <body>
@@ -706,6 +776,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
   <!-- MAIN -->
   <main class="main">
+    <button class="mobile-back" id="mobileBack" onclick="goBackToList()" style="display:none;">← Equipamentos</button>
     <div class="tabs" id="mainTabs">
       <div class="tab active" onclick="showTab('tabParts')">Peças</div>
       <div class="tab" onclick="showTab('tabExploded')">Vista Explodida</div>
@@ -830,6 +901,15 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
       <button class="btn btn-ghost" onclick="closeModal('modalCompanies')">Fechar</button>
     </div>
   </div>
+</div>
+
+<!-- MODAL: Visualizador de PDF -->
+<div id="pdfModal">
+  <div class="pdf-header">
+    <button onclick="closePdfModal()">← Voltar</button>
+    <span class="pdf-title" id="pdfModalTitle">Documento</span>
+  </div>
+  <iframe id="pdfModalFrame" src="" title="PDF"></iframe>
 </div>
 
 <!-- MODAL: Novo Equipamento -->
@@ -1745,7 +1825,36 @@ function selectEquip(id) {
   document.getElementById(currentTab).classList.add('active');
   renderSidebar(document.getElementById('sideSearch').value);
   renderCurrentTab();
+  if (window.innerWidth <= 700) {
+    const btn = document.getElementById('mobileBack');
+    if (btn) btn.style.display = 'flex';
+    window.scrollTo({ top: document.querySelector('.main').offsetTop, behavior: 'smooth' });
+  }
 }
+
+function goBackToList() {
+  currentEquipId = null;
+  document.getElementById('welcome').style.display = '';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const btn = document.getElementById('mobileBack');
+  if (btn) btn.style.display = 'none';
+  renderSidebar(document.getElementById('sideSearch').value);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function openPdfModal(url, name) {
+  document.getElementById('pdfModalFrame').src = url;
+  document.getElementById('pdfModalTitle').textContent = name || 'Documento';
+  document.getElementById('pdfModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePdfModal() {
+  document.getElementById('pdfModal').classList.remove('open');
+  document.getElementById('pdfModalFrame').src = '';
+  document.body.style.overflow = '';
+}
+
 
 // ============================================================
 // MARCAS
@@ -2091,7 +2200,7 @@ function renderTechDocsUI(equip, key) {
             <div class="slot-label">${slot.label}</div>
             ${docs[slot.key] ? `
               <div class="techdoc-file">
-                <a href="/.netlify/functions/techdocs?action=file&key=${encodeURIComponent(key)}&slotKey=${slot.key}" target="_blank" title="${docs[slot.key].name}">${docs[slot.key].name}</a>
+                <a href="#" onclick="openPdfModal('/.netlify/functions/techdocs?action=file&key='+encodeURIComponent(key)+'&slotKey='+encodeURIComponent(slot.key),'${docs[slot.key].name}');return false;" title="${docs[slot.key].name}">${docs[slot.key].name}</a>
                 <span class="rm" onclick="removeTechDoc('${key}','${slot.key}')" title="Remover">🗑</span>
               </div>
             ` : `
