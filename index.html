@@ -1099,6 +1099,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
           <option value="110V">110V</option>
           <option value="220V">220V</option>
           <option value="380V">380V</option>
+          <option value="440V">440V</option>
           <option value="Bivolt">Bivolt</option>
         </select>
       </div>
@@ -2975,7 +2976,8 @@ function fillEquipVoltageSelect(voltageText){
   const sel = document.getElementById('newEquipVoltage');
   if (!voltageText) { sel.value = ''; return; }
   const t = voltageText.toUpperCase().replace(/\s/g, '');
-  if (t.includes('380')) sel.value = '380V';
+  if (t.includes('440')) sel.value = '440V';
+  else if (t.includes('380')) sel.value = '380V';
   else if (t.includes('BIVOLT') || t.includes('BI-VOLT') || (t.includes('110') && t.includes('220'))) sel.value = 'Bivolt';
   else if (t.includes('110') || t.includes('127')) sel.value = '110V';
   else if (t.includes('220')) sel.value = '220V';
