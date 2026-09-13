@@ -2046,10 +2046,14 @@ async function openPdfModal(url, name) {
   document.body.style.overflow = 'hidden';
   try {
     await _loadPdfJs();
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const buf = await resp.arrayBuffer();
-    _curPdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    // Passa a URL diretamente ao PDF.js: ele usa Range requests automaticamente
+    // para carregar o PDF em partes, sem precisar baixar o arquivo inteiro antes.
+    _curPdf = await pdfjsLib.getDocument({
+      url,
+      withCredentials: false,
+      disableRange: false,
+      disableStream: false,
+    }).promise;
     _totPages = _curPdf.numPages;
     _curPage = 1;
     _pdfUpdateNav();
@@ -2057,8 +2061,9 @@ async function openPdfModal(url, name) {
     document.getElementById('pdfLoading').classList.remove('show');
     document.getElementById('pdfCanvas').style.display = 'block';
   } catch (err) {
+    console.error('[PDF] Erro ao carregar:', err);
     document.getElementById('pdfLoading').classList.remove('show');
-    document.getElementById('pdfStatus').textContent = 'Erro: ' + err.message;
+    document.getElementById('pdfStatus').textContent = 'Erro ao carregar PDF: ' + (err.message || err);
   }
 }
 
