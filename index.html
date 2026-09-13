@@ -182,9 +182,10 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .techdoc-file a::before { content: '📄'; font-size: 14px; flex-shrink: 0; }
   .techdoc-file .rm { cursor: pointer; color: var(--danger); font-size: 14px; padding: 6px; margin: -6px; flex-shrink: 0; opacity: 0.7; }
   .techdoc-file .rm:active { opacity: 1; }
-  .techdoc-upload-btn { display: flex; align-items: center; justify-content: center; gap: 7px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 12px; font-size: 12px; color: var(--muted); cursor: pointer; min-height: 44px; }
+  .techdoc-upload-btn { display: flex; align-items: center; justify-content: center; gap: 7px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 10px; font-size: 11.5px; color: var(--muted); cursor: pointer; min-height: 40px; margin-top: 6px; }
   .techdoc-upload-btn:hover { border-color: var(--accent); color: var(--accent2); background: rgba(249,115,22,0.05); }
-  .techdoc-upload-btn::before { content: '＋'; font-size: 15px; }
+  .techdoc-upload-btn::before { content: '＋'; font-size: 14px; }
+  .slot-progress { font-size: 11px; color: var(--muted); min-height: 14px; text-align: center; padding-top: 2px; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2569,22 +2570,28 @@ function renderTechDocsUI(equip, key) {
       <h3>📎 Documentação Técnica</h3>
       <div class="techdocs-sub">Compartilhada por todos os equipamentos ${equip.brand} ${equip.model}, em qualquer cliente e qualquer aparelho</div>
       <div class="techdocs-grid">
-        ${TECHDOC_SLOTS.map(slot => `
-          <div class="techdoc-slot">
-            <div class="slot-label">${slot.label}</div>
-            ${docs[slot.key] ? `
-              <div class="techdoc-file">
-                <a href="#" onclick="openPdfModal('/.netlify/functions/techdocs?action=file&key=${encodeURIComponent(key)}&slotKey=${encodeURIComponent(slot.key)}',decodeURIComponent('${encodeURIComponent(docs[slot.key].name)}'));return false;" title="${docs[slot.key].name}">${docs[slot.key].name}</a>
-                <span class="rm" onclick="removeTechDoc('${key}','${slot.key}')" title="Remover">🗑</span>
-              </div>
-            ` : `
-              <label class="techdoc-upload-btn" id="upl_${slot.key}">
-                ⬆ Enviar PDF
+        ${TECHDOC_SLOTS.map(slot => {
+          const raw = docs[slot.key];
+          const files = Array.isArray(raw) ? raw : (raw ? [{ id: 'legacy', name: raw.name }] : []);
+          const ek = encodeURIComponent(key), esk = encodeURIComponent(slot.key);
+          return `
+            <div class="techdoc-slot" id="slot_${slot.key}">
+              <div class="slot-label">${slot.label}</div>
+              ${files.map(f => {
+                const efid = encodeURIComponent(f.id), ename = encodeURIComponent(f.name);
+                return `<div class="techdoc-file">
+                  <a href="#" onclick="openPdfModal('/.netlify/functions/techdocs?action=file&key=${ek}&slotKey=${esk}&fileId=${efid}',decodeURIComponent('${ename}'));return false;" title="${f.name}">${f.name}</a>
+                  <span class="rm" onclick="removeTechDoc('${key}','${slot.key}','${f.id}')" title="Remover">🗑</span>
+                </div>`;
+              }).join('')}
+              <div class="slot-progress"></div>
+              <label class="techdoc-upload-btn">
+                ⬆ Adicionar PDF
                 <input type="file" accept="application/pdf" style="display:none;" onchange="handleTechDocUpload(event,'${key}','${slot.key}')">
               </label>
-            `}
-          </div>
-        `).join('')}
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
   `;
@@ -2592,52 +2599,85 @@ function renderTechDocsUI(equip, key) {
 
 function handleTechDocUpload(event, key, slotKey) {
   const file = event.target.files[0];
+  event.target.value = '';
   if (!file) return;
   if (file.type !== 'application/pdf') { showToast('Apenas arquivos PDF são aceitos.', 'error'); return; }
-  if (file.size > 15 * 1024 * 1024) {
-    showToast('PDF muito grande (máx. 15MB).', 'error');
-    return;
-  }
-  const uploadLabel = document.getElementById('upl_' + slotKey);
-  if (uploadLabel) uploadLabel.textContent = '⏳ Enviando...';
+  if (file.size > 50 * 1024 * 1024) { showToast('PDF muito grande (máx. 50MB).', 'error'); return; }
 
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const base64 = reader.result.split(',')[1];
+  const slotEl = document.getElementById('slot_' + slotKey);
+  const progressEl = slotEl && slotEl.querySelector('.slot-progress');
+  const uploadLabel = slotEl && slotEl.querySelector('label.techdoc-upload-btn');
+  const setProgress = msg => { if (progressEl) progressEl.textContent = msg; };
+  const setDisabled = v => { if (uploadLabel) { uploadLabel.style.pointerEvents = v ? 'none' : ''; uploadLabel.style.opacity = v ? '0.5' : ''; } };
+
+  setDisabled(true);
+  setProgress('⏳ Lendo arquivo…');
+
+  (async () => {
+    const fileId = 'f' + Date.now();
     try {
-      const res = await fetch('/.netlify/functions/techdocs?action=upload', {
+      const arrayBuffer = await file.arrayBuffer();
+      const CHUNK = 3 * 1024 * 1024; // 3MB raw → ~4MB base64, bem abaixo do limite de 6MB da função
+      const total = Math.ceil(arrayBuffer.byteLength / CHUNK) || 1;
+
+      for (let i = 0; i < total; i++) {
+        setProgress(`⏳ Enviando${total > 1 ? ' parte ' + (i + 1) + '/' + total : ''}…`);
+        const slice = arrayBuffer.slice(i * CHUNK, Math.min((i + 1) * CHUNK, arrayBuffer.byteLength));
+        // Converte para base64 em blocos de 8KB para não estourar a pilha
+        const bytes = new Uint8Array(slice);
+        let binary = '';
+        for (let j = 0; j < bytes.length; j += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(j, Math.min(j + 8192, bytes.length)));
+        }
+        const chunkData = btoa(binary);
+
+        const r = await fetch('/.netlify/functions/techdocs?action=upload-chunk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, slotKey, fileId, chunkIndex: i, chunkData }),
+        });
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'HTTP ' + r.status); }
+      }
+
+      setProgress('⏳ Finalizando…');
+      const fr = await fetch('/.netlify/functions/techdocs?action=finalize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, slotKey, fileName: file.name, fileBase64: base64 }),
+        body: JSON.stringify({ key, slotKey, fileId, totalChunks: total, fileName: file.name }),
       });
-      const result = await res.json();
-      if (!res.ok || result.error) throw new Error(result.error || 'status ' + res.status);
+      const fj = await fr.json();
+      if (!fr.ok || fj.error) throw new Error(fj.error || 'HTTP ' + fr.status);
 
+      // Atualiza índice local
       if (!techDocsIndex[key]) techDocsIndex[key] = {};
-      techDocsIndex[key][slotKey] = { name: file.name };
+      const existing = techDocsIndex[key][slotKey];
+      const arr = Array.isArray(existing) ? existing : (existing ? [{ id: 'legacy', name: existing.name }] : []);
+      arr.push({ id: fileId, name: file.name });
+      techDocsIndex[key][slotKey] = arr;
+
       const equip = db.equipment.find(e => e.id === currentEquipId);
       if (equip) renderTechDocsUI(equip, key);
       showToast('Documento anexado! ✅', 'success');
     } catch (err) {
-      showToast('Falha ao enviar documento: ' + err.message, 'error');
-      const equip = db.equipment.find(e => e.id === currentEquipId);
-      if (equip) renderTechDocsUI(equip, key);
+      setProgress('');
+      setDisabled(false);
+      showToast('Falha ao enviar: ' + (err.message || 'erro desconhecido'), 'error');
     }
-  };
-  reader.onerror = () => showToast('Erro ao ler o arquivo.', 'error');
-  reader.readAsDataURL(file);
+  })();
 }
 
-async function removeTechDoc(key, slotKey) {
-  if (!confirm('Remover este documento? Ele deixa de aparecer para todos os equipamentos deste modelo, em todos os aparelhos.')) return;
+async function removeTechDoc(key, slotKey, fileId) {
+  if (!confirm('Remover este documento? Ele deixa de aparecer em todos os aparelhos.')) return;
   try {
     const res = await fetch('/.netlify/functions/techdocs?action=delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, slotKey }),
+      body: JSON.stringify({ key, slotKey, fileId }),
     });
     if (!res.ok) throw new Error('status ' + res.status);
-    if (techDocsIndex[key]) delete techDocsIndex[key][slotKey];
+    if (techDocsIndex[key] && Array.isArray(techDocsIndex[key][slotKey])) {
+      techDocsIndex[key][slotKey] = techDocsIndex[key][slotKey].filter(f => f.id !== fileId);
+    }
     const equip = db.equipment.find(e => e.id === currentEquipId);
     if (equip) renderTechDocsUI(equip, key);
     showToast('Documento removido.', 'success');
