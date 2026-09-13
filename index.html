@@ -2200,7 +2200,7 @@ function renderTechDocsUI(equip, key) {
             <div class="slot-label">${slot.label}</div>
             ${docs[slot.key] ? `
               <div class="techdoc-file">
-                <a href="#" onclick="openPdfModal('/.netlify/functions/techdocs?action=file&key='+encodeURIComponent(key)+'&slotKey='+encodeURIComponent(slot.key),'${docs[slot.key].name}');return false;" title="${docs[slot.key].name}">${docs[slot.key].name}</a>
+                <a href="#" onclick="openPdfModal('/.netlify/functions/techdocs?action=file&key=${encodeURIComponent(key)}&slotKey=${encodeURIComponent(slot.key)}',decodeURIComponent('${encodeURIComponent(docs[slot.key].name)}'));" title="${docs[slot.key].name}">${docs[slot.key].name}</a>
                 <span class="rm" onclick="removeTechDoc('${key}','${slot.key}')" title="Remover">🗑</span>
               </div>
             ` : `
