@@ -32,11 +32,12 @@ exports.handler = async function (event) {
 - brand: marca/fabricante
 - model: modelo (código ou nome)
 - category: tipo de equipamento em poucas palavras (ex: "Forno Combinado", "Máquina de Gelo", "Fritadeira a Gás")
-- power: tensão e/ou potência resumida (ex: "220V 1,75kW")
-- serial: número de série
+- voltage: tensão elétrica exata conforme indicada na plaqueta (ex: "220V", "380V", "127V", "Bivolt", "110/220V"). Se não identificar ou for equipamento a gás, retorne "".
+- power: potência elétrica do equipamento (ex: "3000W", "1,75kW", "5kW"). Para equipamentos a gás, retorne "Gás". Se não identificar, retorne "".
+- serial: número de série completo como aparece na plaqueta
 
 Se algum campo não estiver legível, retorne "" para ele. Responda APENAS com JSON válido, sem markdown, sem explicação:
-{"brand":"","model":"","category":"","power":"","serial":""}`;
+{"brand":"","model":"","category":"","voltage":"","power":"","serial":""}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
