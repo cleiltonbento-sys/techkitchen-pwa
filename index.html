@@ -177,17 +177,11 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .techdocs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
   .techdoc-slot { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
   .techdoc-slot .slot-label { font-size: 11.5px; color: var(--text-dim,#9aa2a9); font-weight: 600; margin-bottom: 8px; display:flex; align-items:center; gap:6px; }
-  .techdoc-file { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; gap: 8px; }
-  .techdoc-file a { color: var(--accent2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-weight: 500; display: flex; align-items: center; gap: 6px; min-height: 36px; }
-  .techdoc-file a::before { content: '📄'; font-size: 14px; flex-shrink: 0; }
-  .techdoc-file .rm { cursor: pointer; color: var(--danger); font-size: 14px; padding: 6px; margin: -6px; flex-shrink: 0; opacity: 0.7; }
-  .techdoc-file .rm:active { opacity: 1; }
-  .techdoc-file .shr { cursor: pointer; color: var(--muted); font-size: 15px; padding: 6px; margin: -6px; flex-shrink: 0; opacity: 0.8; }
-  .techdoc-file .shr:active { opacity: 1; color: var(--accent2); }
-  .techdoc-upload-btn { display: flex; align-items: center; justify-content: center; gap: 7px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 10px; font-size: 11.5px; color: var(--muted); cursor: pointer; min-height: 40px; margin-top: 6px; }
-  .techdoc-upload-btn:hover { border-color: var(--accent); color: var(--accent2); background: rgba(249,115,22,0.05); }
-  .techdoc-upload-btn::before { content: '＋'; font-size: 14px; }
-  .slot-progress { font-size: 11px; color: var(--muted); min-height: 14px; text-align: center; padding-top: 2px; }
+  .techdoc-file { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+  .techdoc-file a { color: var(--accent2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+  .techdoc-file .rm { cursor: pointer; color: var(--danger); font-size: 12px; margin-left: 8px; }
+  .techdoc-upload-btn { display: block; text-align: center; border: 1.5px dashed var(--border); border-radius: 8px; padding: 10px; font-size: 11.5px; color: var(--muted); cursor: pointer; }
+  .techdoc-upload-btn:hover { border-color: var(--accent); color: var(--accent2); }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -660,203 +654,6 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .io-card p { color: var(--muted); font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
 
   .no-select { user-select: none; }
-
-  /* ── PDF VIEWER MODAL ────────────────────────────────── */
-  /* Abordagem: posicionamento absoluto (mais confiável que flexbox no iOS PWA) */
-  :root {
-    --pdf-header-h: 52px;
-    --pdf-nav-h: 62px;
-  }
-  #pdfModal {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    z-index: 9999;
-    background: #080a0d;
-  }
-  #pdfModal.open { display: block; }
-
-  /* Cabeçalho: ancorado no topo, respeita safe-area */
-  #pdfModal .pdf-header {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: calc(var(--pdf-header-h) + env(safe-area-inset-top));
-    padding-top: env(safe-area-inset-top);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-left: 14px;
-    padding-right: 14px;
-    background: #111418;
-    border-bottom: 1px solid rgba(249,115,22,0.20);
-    z-index: 2;
-    box-sizing: border-box;
-  }
-  .pdf-back-btn {
-    background: rgba(249,115,22,0.15);
-    color: #f97316;
-    border: 1px solid rgba(249,115,22,0.30);
-    border-radius: 10px;
-    padding: 0 14px;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    height: 38px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .pdf-back-btn:active { background: rgba(249,115,22,0.30); }
-  #pdfModalTitle {
-    font-size: 13px;
-    font-weight: 500;
-    color: #7a8499;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  /* Canvas area: ocupa o espaço entre header e nav */
-  .pdf-canvas-wrap {
-    position: absolute;
-    top: calc(var(--pdf-header-h) + env(safe-area-inset-top));
-    bottom: calc(var(--pdf-nav-h) + env(safe-area-inset-bottom));
-    left: 0; right: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    background: #3a3d42;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 14px;
-    gap: 10px;
-  }
-  #pdfCanvas {
-    display: block;
-    border-radius: 3px;
-    box-shadow: 0 6px 32px rgba(0,0,0,0.55);
-  }
-
-  /* Loading spinner */
-  .pdf-loading-overlay {
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    color: #7a8499;
-    font-size: 13px;
-    padding: 60px 0;
-    width: 100%;
-  }
-  .pdf-loading-overlay.show { display: flex; }
-  .pdf-spinner {
-    width: 30px; height: 30px;
-    border: 2.5px solid #2a2d33;
-    border-top-color: #f97316;
-    border-radius: 50%;
-    animation: pdfSpin 0.75s linear infinite;
-  }
-  @keyframes pdfSpin { to { transform: rotate(360deg); } }
-
-  /* Barra de nav: ancorada no rodapé, respeita safe-area */
-  .pdf-nav {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: calc(var(--pdf-nav-h) + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-left: 12px;
-    padding-right: 12px;
-    background: #111418;
-    border-top: 1px solid #1e2230;
-    z-index: 2;
-    box-sizing: border-box;
-  }
-  .pdf-nav-btn {
-    background: #1e2230;
-    color: #c8cdd8;
-    border: 1px solid #2a2f45;
-    border-radius: 10px;
-    font-size: 16px;
-    cursor: pointer;
-    width: 44px; height: 40px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.1s;
-  }
-  .pdf-nav-btn:active { background: #2a2f45; }
-  .pdf-nav-btn:disabled { opacity: 0.28; cursor: default; }
-  #pdfPageInfo {
-    font-weight: 600;
-    font-size: 13px;
-    color: #c8cdd8;
-    min-width: 64px;
-    text-align: center;
-    background: #1a1e28;
-    border: 1px solid #2a2f45;
-    border-radius: 8px;
-    padding: 6px 8px;
-    font-variant-numeric: tabular-nums;
-  }
-  /* Zoom */
-  .pdf-zoom-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-  }
-  #pdfZoomLabel {
-    font-size: 11px;
-    color: #4b5263;
-    min-width: 36px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
-  .pdf-zoom-btn {
-    background: #1a1e28;
-    color: #c8cdd8;
-    border: 1px solid #2a2f45;
-    border-radius: 8px;
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    width: 36px; height: 36px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .pdf-zoom-btn:active { background: #2a2f45; }
-
-  /* ── BOTÃO VOLTAR MOBILE ─────────────────────────────── */
-  .mobile-back {
-    display: none;
-  }
-  @media (max-width: 700px) {
-    .mobile-back {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 12px 4px;
-      color: var(--accent2);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      background: none;
-      border: none;
-      width: 100%;
-      text-align: left;
-    }
-    .mobile-back:hover { opacity: 0.8; }
-  }
 </style>
 </head>
 <body>
@@ -909,7 +706,6 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
   <!-- MAIN -->
   <main class="main">
-    <button class="mobile-back" id="mobileBack" onclick="goBackToList()" style="display:none;">← Equipamentos</button>
     <div class="tabs" id="mainTabs">
       <div class="tab active" onclick="showTab('tabParts')">Peças</div>
       <div class="tab" onclick="showTab('tabExploded')">Vista Explodida</div>
@@ -1044,32 +840,6 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   </div>
 </div>
 
-<!-- MODAL: Visualizador de PDF -->
-<div id="pdfModal">
-  <div class="pdf-header">
-    <button class="pdf-back-btn" onclick="closePdfModal()">&#8592; Voltar</button>
-    <span id="pdfModalTitle">Documento</span>
-  </div>
-  <div class="pdf-canvas-wrap" id="pdfCanvasWrap">
-    <div class="pdf-loading-overlay" id="pdfLoading">
-      <div class="pdf-spinner"></div>
-      <span>Carregando documento…</span>
-    </div>
-    <canvas id="pdfCanvas"></canvas>
-  </div>
-  <div class="pdf-nav">
-    <button class="pdf-nav-btn" id="pdfPrevBtn" onclick="pdfPrevPage()" disabled>&#9664;</button>
-    <span id="pdfPageInfo">— / —</span>
-    <button class="pdf-nav-btn" id="pdfNextBtn" onclick="pdfNextPage()" disabled>&#9654;</button>
-    <span id="pdfStatus"></span>
-    <div class="pdf-zoom-group">
-      <button class="pdf-zoom-btn" onclick="pdfZoomOut()">−</button>
-      <span id="pdfZoomLabel">100%</span>
-      <button class="pdf-zoom-btn" onclick="pdfZoomIn()">+</button>
-    </div>
-  </div>
-</div>
-
 <!-- MODAL: Novo Equipamento -->
 <div class="modal-overlay" id="modalEquip">
   <div class="modal">
@@ -1096,23 +866,13 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
         <input type="text" id="newEquipLine" placeholder="Ex: Forno Combinado, Máquina de Gelo...">
       </div>
       <div class="form-group">
-        <label>Tensão Elétrica</label>
+        <label>Tensão</label>
         <select id="newEquipVoltage">
-          <option value="">— Selecione —</option>
           <option value="110V">110V</option>
-          <option value="220V">220V</option>
+          <option value="220V" selected>220V</option>
           <option value="380V">380V</option>
-          <option value="440V">440V</option>
           <option value="Bivolt">Bivolt</option>
         </select>
-      </div>
-      <div class="form-group">
-        <label>Potência</label>
-        <input type="text" id="newEquipPower" placeholder="Ex: 3000W, 1,75kW, Gás">
-      </div>
-      <div class="form-group full">
-        <label>Número de Série</label>
-        <input type="text" id="newEquipSerial" placeholder="Ex: BR2023-04501">
       </div>
       <div class="form-group full">
         <label>Empresa Proprietária <span style="font-weight:400;color:var(--muted);font-size:11px;">(opcional)</span></label>
@@ -1290,7 +1050,7 @@ let cloudSynced = false;
 
 async function syncFromCloud() {
   try {
-    const res = await fetch('/.netlify/functions/appdata');
+    const res = await fetch('/api/appdata');
     if (!res.ok) throw new Error('status ' + res.status);
     const cloud = await res.json();
     if (cloud && (cloud.equipment || cloud.companies)) {
@@ -1315,7 +1075,7 @@ function saveDBLocal() {
 
 async function pushToCloud() {
   try {
-    await fetch('/.netlify/functions/appdata', {
+    await fetch('/api/appdata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(db),
@@ -1993,131 +1753,6 @@ function selectEquip(id) {
   document.getElementById(currentTab).classList.add('active');
   renderSidebar(document.getElementById('sideSearch').value);
   renderCurrentTab();
-  // Mostra botão voltar no mobile
-  if (window.innerWidth <= 700) {
-    const btn = document.getElementById('mobileBack');
-    if (btn) btn.style.display = 'flex';
-    window.scrollTo({ top: document.querySelector('.main').offsetTop, behavior: 'smooth' });
-  }
-}
-
-function goBackToList() {
-  currentEquipId = null;
-  document.getElementById('welcome').style.display = '';
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  const btn = document.getElementById('mobileBack');
-  if (btn) btn.style.display = 'none';
-  renderSidebar(document.getElementById('sideSearch').value);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-/* ── PDF.js viewer ───────────────────────────────────────── */
-const PDFJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-let _pdfJsReady = false, _curPdf = null, _curPage = 1, _totPages = 0, _curZoom = 1.0;
-
-async function _loadPdfJs() {
-  if (_pdfJsReady) return;
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = PDFJS_CDN;
-    s.onload = () => {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-      _pdfJsReady = true;
-      res();
-    };
-    s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
-
-async function openPdfModal(url, name) {
-  document.getElementById('pdfModalTitle').textContent = name || 'Documento';
-  document.getElementById('pdfPageInfo').textContent = '— / —';
-  document.getElementById('pdfStatus').textContent = '';
-  document.getElementById('pdfPrevBtn').disabled = true;
-  document.getElementById('pdfNextBtn').disabled = true;
-  _curZoom = 1.0;
-  document.getElementById('pdfZoomLabel').textContent = '100%';
-  // Mostrar loading e esconder canvas anterior
-  document.getElementById('pdfLoading').classList.add('show');
-  document.getElementById('pdfCanvas').style.display = 'none';
-  document.getElementById('pdfModal').classList.add('open');
-  document.body.style.overflow = 'hidden';
-  try {
-    await _loadPdfJs();
-    // Passa a URL diretamente ao PDF.js: ele usa Range requests automaticamente
-    // para carregar o PDF em partes, sem precisar baixar o arquivo inteiro antes.
-    _curPdf = await pdfjsLib.getDocument({
-      url,
-      withCredentials: false,
-      disableRange: false,
-      disableStream: false,
-    }).promise;
-    _totPages = _curPdf.numPages;
-    _curPage = 1;
-    _pdfUpdateNav();
-    await _pdfRender(_curPage);
-    document.getElementById('pdfLoading').classList.remove('show');
-    document.getElementById('pdfCanvas').style.display = 'block';
-  } catch (err) {
-    console.error('[PDF] Erro ao carregar:', err);
-    document.getElementById('pdfLoading').classList.remove('show');
-    document.getElementById('pdfStatus').textContent = 'Erro ao carregar PDF: ' + (err.message || err);
-  }
-}
-
-async function _pdfRender(n) {
-  const page = await _curPdf.getPage(n);
-  const wrap = document.getElementById('pdfCanvasWrap');
-  const dpr = window.devicePixelRatio || 1;
-  const cssWidth = (wrap.clientWidth - 24) * _curZoom;
-  const baseScale = cssWidth / page.getViewport({ scale: 1 }).width;
-  // Renderiza na resolução física real (Retina/3x) para máxima nitidez
-  const vp = page.getViewport({ scale: baseScale * dpr });
-  const canvas = document.getElementById('pdfCanvas');
-  canvas.width = vp.width;
-  canvas.height = vp.height;
-  // Tamanho CSS = pixels lógicos (não físicos) — mantém proporção na tela
-  canvas.style.width  = cssWidth + 'px';
-  canvas.style.height = Math.round(vp.height / dpr) + 'px';
-  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-  wrap.scrollTop = 0;
-}
-
-function pdfZoomIn() {
-  _curZoom = Math.min(3.0, parseFloat((_curZoom + 0.25).toFixed(2)));
-  document.getElementById('pdfZoomLabel').textContent = Math.round(_curZoom * 100) + '%';
-  if (_curPdf) _pdfRender(_curPage);
-}
-function pdfZoomOut() {
-  _curZoom = Math.max(0.5, parseFloat((_curZoom - 0.25).toFixed(2)));
-  document.getElementById('pdfZoomLabel').textContent = Math.round(_curZoom * 100) + '%';
-  if (_curPdf) _pdfRender(_curPage);
-}
-
-function pdfPrevPage() {
-  if (_curPage > 1) { _curPage--; _pdfUpdateNav(); _pdfRender(_curPage); }
-}
-function pdfNextPage() {
-  if (_curPage < _totPages) { _curPage++; _pdfUpdateNav(); _pdfRender(_curPage); }
-}
-function _pdfUpdateNav() {
-  document.getElementById('pdfPageInfo').textContent = _curPage + ' / ' + _totPages;
-  document.getElementById('pdfPrevBtn').disabled = _curPage <= 1;
-  document.getElementById('pdfNextBtn').disabled = _curPage >= _totPages;
-}
-function closePdfModal() {
-  document.getElementById('pdfModal').classList.remove('open');
-  document.body.style.overflow = '';
-  _curPdf = null; _curPage = 1; _totPages = 0;
-  const c = document.getElementById('pdfCanvas');
-  c.width = 0; c.height = 0; c.style.display = 'none';
-  document.getElementById('pdfLoading').classList.remove('show');
-  document.getElementById('pdfStatus').textContent = '';
-  document.getElementById('pdfPageInfo').textContent = '— / —';
-  _curZoom = 1.0;
-  document.getElementById('pdfZoomLabel').textContent = '100%';
 }
 
 // ============================================================
@@ -2215,9 +1850,7 @@ function renderParts() {
       <h1>${equip.model}</h1>
       <div class="meta">
         <span class="meta-tag">📌 ${equip.brand}</span>
-        ${equip.voltage ? `<span class="meta-tag">🔌 ${equip.voltage}</span>` : ''}
-        ${equip.power ? `<span class="meta-tag">⚡ ${equip.power}</span>` : ''}
-        ${equip.serial ? `<span class="meta-tag">🔢 ${equip.serial}</span>` : ''}
+        <span class="meta-tag">⚡ ${equip.voltage}</span>
         ${equip.line ? `<span class="meta-tag">🍽 ${equip.line}</span>` : ''}
         ${equip.obs ? `<span class="meta-tag">📝 ${equip.obs}</span>` : ''}
       </div>
@@ -2552,7 +2185,7 @@ function docKey(equip) {
 
 async function loadTechDocsIndex() {
   try {
-    const res = await fetch('/.netlify/functions/techdocs?action=list');
+    const res = await fetch('/api/techdocs?action=list');
     if (!res.ok) throw new Error('status ' + res.status);
     techDocsIndex = await res.json();
     techDocsIndexLoaded = true;
@@ -2578,113 +2211,97 @@ function renderTechDocsUI(equip, key) {
       <div class="techdocs-sub">Compartilhada por todos os equipamentos ${equip.brand} ${equip.model}, em qualquer cliente e qualquer aparelho</div>
       <div class="techdocs-grid">
         ${TECHDOC_SLOTS.map(slot => {
-          const raw = docs[slot.key];
-          const files = Array.isArray(raw) ? raw : (raw ? [{ id: 'legacy', name: raw.name }] : []);
-          const ek = encodeURIComponent(key), esk = encodeURIComponent(slot.key);
+          const files = Array.isArray(docs[slot.key]) ? docs[slot.key] : (docs[slot.key] ? [docs[slot.key]] : []);
           return `
-            <div class="techdoc-slot" id="slot_${slot.key}">
-              <div class="slot-label">${slot.label}</div>
-              ${files.map(f => {
-                const efid = encodeURIComponent(f.id), ename = encodeURIComponent(f.name);
-                return `<div class="techdoc-file">
-                  <a href="#" onclick="openPdfModal('/.netlify/functions/techdocs?action=file&key=${ek}&slotKey=${esk}&fileId=${efid}',decodeURIComponent('${ename}'));return false;" title="${f.name}">${f.name}</a>
-                  <span class="shr" onclick="shareTechDoc('${key}','${slot.key}','${f.id}',decodeURIComponent('${ename}'))" title="Compartilhar">📤</span>
-                  <span class="rm" onclick="removeTechDoc('${key}','${slot.key}','${f.id}')" title="Remover">🗑</span>
-                </div>`;
-              }).join('')}
-              <div class="slot-progress"></div>
-              <label class="techdoc-upload-btn">
-                ⬆ Adicionar PDF
-                <input type="file" accept="application/pdf" style="display:none;" onchange="handleTechDocUpload(event,'${key}','${slot.key}')">
-              </label>
-            </div>
-          `;
+          <div class="techdoc-slot">
+            <div class="slot-label">${slot.label}</div>
+            ${files.map(f => `
+              <div class="techdoc-file">
+                ${f.url ? `<a href="${f.url}" target="_blank" title="${f.name}">${f.name}</a>` : `<span title="${f.name}">${f.name}</span>`}
+                <span class="rm" onclick="removeTechDoc('${key}','${slot.key}','${f.id || ''}')" title="Remover">🗑</span>
+              </div>
+            `).join('')}
+            <label class="techdoc-upload-btn" id="upl_${slot.key}">
+              + ⬆ ADICIONAR PDF
+              <input type="file" accept="application/pdf" style="display:none;" onchange="handleTechDocUpload(event,'${key}','${slot.key}')">
+            </label>
+          </div>`;
         }).join('')}
       </div>
     </div>
   `;
 }
 
-function handleTechDocUpload(event, key, slotKey) {
+async function handleTechDocUpload(event, key, slotKey) {
   const file = event.target.files[0];
-  event.target.value = '';
   if (!file) return;
   if (file.type !== 'application/pdf') { showToast('Apenas arquivos PDF são aceitos.', 'error'); return; }
-  if (file.size > 50 * 1024 * 1024) { showToast('PDF muito grande (máx. 50MB).', 'error'); return; }
+  if (file.size > 30 * 1024 * 1024) { showToast('PDF muito grande (máx. 30MB).', 'error'); return; }
 
-  const slotEl = document.getElementById('slot_' + slotKey);
-  const progressEl = slotEl && slotEl.querySelector('.slot-progress');
-  const uploadLabel = slotEl && slotEl.querySelector('label.techdoc-upload-btn');
-  const setProgress = msg => { if (progressEl) progressEl.textContent = msg; };
-  const setDisabled = v => { if (uploadLabel) { uploadLabel.style.pointerEvents = v ? 'none' : ''; uploadLabel.style.opacity = v ? '0.5' : ''; } };
+  const uploadLabel = document.getElementById('upl_' + slotKey);
+  if (uploadLabel) uploadLabel.textContent = '⏳ Enviando...';
 
-  setDisabled(true);
-  setProgress('⏳ Lendo arquivo…');
+  const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB raw → ≈2.7MB base64, dentro do limite de 4.5MB do Vercel
+  const fileId = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
-  (async () => {
-    const fileId = 'f' + Date.now();
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const CHUNK = 3 * 1024 * 1024; // 3MB raw → ~4MB base64, bem abaixo do limite de 6MB da função
-      const total = Math.ceil(arrayBuffer.byteLength / CHUNK) || 1;
+  try {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const totalChunks = Math.ceil(bytes.length / CHUNK_SIZE);
 
-      for (let i = 0; i < total; i++) {
-        setProgress(`⏳ Enviando${total > 1 ? ' parte ' + (i + 1) + '/' + total : ''}…`);
-        const slice = arrayBuffer.slice(i * CHUNK, Math.min((i + 1) * CHUNK, arrayBuffer.byteLength));
-        // Converte para base64 em blocos de 8KB para não estourar a pilha
-        const bytes = new Uint8Array(slice);
-        let binary = '';
-        for (let j = 0; j < bytes.length; j += 8192) {
-          binary += String.fromCharCode(...bytes.subarray(j, Math.min(j + 8192, bytes.length)));
-        }
-        const chunkData = btoa(binary);
+    for (let i = 0; i < totalChunks; i++) {
+      const slice = bytes.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      // Converte Uint8Array para base64
+      let binary = '';
+      slice.forEach(b => binary += String.fromCharCode(b));
+      const chunkData = btoa(binary);
 
-        const r = await fetch('/.netlify/functions/techdocs?action=upload-chunk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key, slotKey, fileId, chunkIndex: i, chunkData }),
-        });
-        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'HTTP ' + r.status); }
-      }
-
-      setProgress('⏳ Finalizando…');
-      const fr = await fetch('/.netlify/functions/techdocs?action=finalize', {
+      const res = await fetch('/api/techdocs?action=upload-chunk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, slotKey, fileId, totalChunks: total, fileName: file.name }),
+        body: JSON.stringify({ key, slotKey, fileId, chunkIndex: i, chunkData }),
       });
-      const fj = await fr.json();
-      if (!fr.ok || fj.error) throw new Error(fj.error || 'HTTP ' + fr.status);
-
-      // Atualiza índice local
-      if (!techDocsIndex[key]) techDocsIndex[key] = {};
-      const existing = techDocsIndex[key][slotKey];
-      const arr = Array.isArray(existing) ? existing : (existing ? [{ id: 'legacy', name: existing.name }] : []);
-      arr.push({ id: fileId, name: file.name });
-      techDocsIndex[key][slotKey] = arr;
-
-      const equip = db.equipment.find(e => e.id === currentEquipId);
-      if (equip) renderTechDocsUI(equip, key);
-      showToast('Documento anexado! ✅', 'success');
-    } catch (err) {
-      setProgress('');
-      setDisabled(false);
-      showToast('Falha ao enviar: ' + (err.message || 'erro desconhecido'), 'error');
+      const r = await res.json();
+      if (!res.ok || r.error) throw new Error(r.error || 'status ' + res.status);
+      if (uploadLabel) uploadLabel.textContent = `⏳ ${Math.round(((i + 1) / totalChunks) * 100)}%`;
     }
-  })();
+
+    // Finalizar: juntar chunks e gravar no índice
+    const res = await fetch('/api/techdocs?action=finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, slotKey, fileId, totalChunks, fileName: file.name }),
+    });
+    const result = await res.json();
+    if (!res.ok || result.error) throw new Error(result.error || 'status ' + res.status);
+
+    // Atualiza índice local com a URL do blob para abrir sem passar pela função
+    if (!techDocsIndex[key]) techDocsIndex[key] = {};
+    if (!Array.isArray(techDocsIndex[key][slotKey])) techDocsIndex[key][slotKey] = [];
+    techDocsIndex[key][slotKey].push({ id: fileId, name: file.name, updatedAt: new Date().toISOString(), url: result.url });
+
+    const equip = db.equipment.find(e => e.id === currentEquipId);
+    if (equip) renderTechDocsUI(equip, key);
+    showToast('Documento anexado! ✅', 'success');
+  } catch (err) {
+    showToast('Falha ao enviar: ' + err.message, 'error');
+    const equip = db.equipment.find(e => e.id === currentEquipId);
+    if (equip) renderTechDocsUI(equip, key);
+  }
 }
 
 async function removeTechDoc(key, slotKey, fileId) {
-  if (!confirm('Remover este documento? Ele deixa de aparecer em todos os aparelhos.')) return;
+  if (!confirm('Remover este documento? Ele deixa de aparecer para todos os equipamentos deste modelo, em todos os aparelhos.')) return;
   try {
-    const res = await fetch('/.netlify/functions/techdocs?action=delete', {
+    const res = await fetch('/api/techdocs?action=delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, slotKey, fileId }),
     });
     if (!res.ok) throw new Error('status ' + res.status);
-    if (techDocsIndex[key] && Array.isArray(techDocsIndex[key][slotKey])) {
-      techDocsIndex[key][slotKey] = techDocsIndex[key][slotKey].filter(f => f.id !== fileId);
+    if (techDocsIndex[key] && techDocsIndex[key][slotKey]) {
+      techDocsIndex[key][slotKey] = (techDocsIndex[key][slotKey] || []).filter(f => f.id !== fileId);
+      if (!techDocsIndex[key][slotKey].length) delete techDocsIndex[key][slotKey];
     }
     const equip = db.equipment.find(e => e.id === currentEquipId);
     if (equip) renderTechDocsUI(equip, key);
@@ -2692,46 +2309,6 @@ async function removeTechDoc(key, slotKey, fileId) {
   } catch (err) {
     showToast('Falha ao remover: ' + err.message, 'error');
   }
-}
-
-async function shareTechDoc(key, slotKey, fileId, fileName) {
-  const url = window.location.origin +
-    '/.netlify/functions/techdocs?action=file' +
-    '&key=' + encodeURIComponent(key) +
-    '&slotKey=' + encodeURIComponent(slotKey) +
-    '&fileId=' + encodeURIComponent(fileId);
-
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: fileName, text: '📄 ' + fileName + ' — TechKitchen', url });
-    } catch (e) {
-      if (e.name !== 'AbortError') _copyLink(url);
-    }
-  } else {
-    _copyLink(url);
-  }
-}
-
-function _copyLink(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => showToast('Link copiado! 📋', 'success'))
-      .catch(() => _copyLinkFallback(text));
-  } else {
-    _copyLinkFallback(text);
-  }
-}
-
-function _copyLinkFallback(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.focus(); ta.select();
-  try { document.execCommand('copy'); showToast('Link copiado! 📋', 'success'); }
-  catch { showToast('Copie o link manualmente.', 'error'); }
-  document.body.removeChild(ta);
 }
 
 // ============================================================
@@ -3060,16 +2637,13 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 // ============================================================
 // SAVE FUNCTIONS
 // ============================================================
-function fillEquipVoltageSelect(voltageText){
+function fillEquipVoltageSelect(powerText){
   const sel = document.getElementById('newEquipVoltage');
-  if (!voltageText) { sel.value = ''; return; }
-  const t = voltageText.toUpperCase().replace(/\s/g, '');
-  if (t.includes('440')) sel.value = '440V';
-  else if (t.includes('380')) sel.value = '380V';
-  else if (t.includes('BIVOLT') || t.includes('BI-VOLT') || (t.includes('110') && t.includes('220'))) sel.value = 'Bivolt';
+  const t = (powerText || '').toUpperCase();
+  if (t.includes('380')) sel.value = '380V';
   else if (t.includes('110') || t.includes('127')) sel.value = '110V';
-  else if (t.includes('220')) sel.value = '220V';
-  else sel.value = '';
+  else if (t.includes('BIVOLT')) sel.value = 'Bivolt';
+  else sel.value = '220V';
 }
 
 function matchBrandOption(brandText){
@@ -3141,7 +2715,7 @@ document.getElementById('plateFileInput').addEventListener('change', async funct
 
     statusEl.textContent = '⏳ Lendo plaqueta…';
 
-    const response = await fetch("/.netlify/functions/read-plate", {
+    const response = await fetch("/api/read-plate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64: base64Data, mediaType: mediaType })
@@ -3158,9 +2732,12 @@ document.getElementById('plateFileInput').addEventListener('change', async funct
     const brandMatched = matchBrandOption(parsed.brand);
     document.getElementById('newEquipModel').value = parsed.model || '';
     document.getElementById('newEquipLine').value = parsed.category || '';
-    document.getElementById('newEquipSerial').value = parsed.serial || '';
-    document.getElementById('newEquipPower').value = parsed.power || '';
-    fillEquipVoltageSelect(parsed.voltage);
+    fillEquipVoltageSelect(parsed.power);
+
+    let obsLines = [];
+    if (parsed.serial) obsLines.push('Nº de série: ' + parsed.serial);
+    if (parsed.power) obsLines.push('Potência/Tensão (plaqueta): ' + parsed.power);
+    document.getElementById('newEquipObs').value = obsLines.join('\n');
 
     statusEl.textContent = '✅ Plaqueta lida — confira os campos antes de salvar';
     if (!brandMatched && parsed.brand){
@@ -3184,8 +2761,6 @@ function saveEquipment() {
     id: 'e' + Date.now(),
     brand, model,
     line: document.getElementById('newEquipLine').value.trim(),
-    serial: document.getElementById('newEquipSerial').value.trim(),
-    power: document.getElementById('newEquipPower').value.trim(),
     voltage: document.getElementById('newEquipVoltage').value,
     companyId: document.getElementById('newEquipCompany').value || null,
     unitId: document.getElementById('newEquipUnit').value || null,
@@ -3200,9 +2775,6 @@ function saveEquipment() {
   showToast('Equipamento salvo! ✅', 'success');
   document.getElementById('newEquipModel').value = '';
   document.getElementById('newEquipLine').value = '';
-  document.getElementById('newEquipSerial').value = '';
-  document.getElementById('newEquipPower').value = '';
-  document.getElementById('newEquipVoltage').value = '';
   document.getElementById('newEquipObs').value = '';
 }
 
