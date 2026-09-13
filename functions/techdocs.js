@@ -16,22 +16,12 @@
 
 const { getStore } = require('@netlify/blobs');
 
-// Em Netlify Functions, NETLIFY_BLOBS_CONTEXT é injetado automaticamente.
-// Para sites onde isso não acontece, usa SITE_ID + NETLIFY_AUTH_TOKEN
-// configurados manualmente no painel de variáveis de ambiente do Netlify.
-function makeStoreConfig(name) {
-  const cfg = { name };
-  // SITE_ID é injetado automaticamente pelo Netlify em todas as funções
-  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
-  // NETLIFY_AUTH_TOKEN deve ser adicionado manualmente no painel do Netlify
-  const token  = process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_BLOBS_TOKEN;
-  if (siteID) cfg.siteID = siteID;
-  if (token)  cfg.token  = token;
-  return cfg;
-}
-
-function indexStore() { return getStore(makeStoreConfig('techdocs-index')); }
-function fileStore()  { return getStore(makeStoreConfig('techdocs-files')); }
+// Usa o mesmo padrão simples do appdata.js — passa apenas o nome da store.
+// O NETLIFY_BLOBS_CONTEXT é injetado automaticamente pelo runtime do Netlify.
+// Passar siteID sem token (parcialmente) confunde o @netlify/blobs v8 e impede
+// a detecção automática do contexto.
+function indexStore() { return getStore('techdocs-index'); }
+function fileStore()  { return getStore('techdocs-files'); }
 
 // Garante que um slot do índice seja sempre um array
 function normalizeSlot(val) {
