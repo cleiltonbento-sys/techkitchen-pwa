@@ -1100,17 +1100,23 @@ async function manualSync() {
     const res = await fetch('/api/appdata');
     if (!res.ok) throw new Error('status ' + res.status);
     const cloud = await res.json();
-    if (cloud && (cloud.equipment || cloud.companies)) {
-      db = cloud;
-      if (!db.companies) db.companies = [];
-      if (!db.techDocs) db.techDocs = {};
-      if (!db.parts) db.parts = [];
-      if (!db.diagnostics) db.diagnostics = [];
-      saveDBLocal();
-      renderSidebar();
-      if (currentEquipId) renderCurrentTab();
-      if (currentCompanyId) renderCompanyDetail();
+    if (!cloud) {
+      showToast('Nuvem vazia — salve algo primeiro.', 'error');
+      return;
     }
+    if (cloud.error) {
+      showToast('Erro na nuvem: ' + cloud.error, 'error');
+      return;
+    }
+    db = cloud;
+    if (!db.companies) db.companies = [];
+    if (!db.techDocs) db.techDocs = {};
+    if (!db.parts) db.parts = [];
+    if (!db.diagnostics) db.diagnostics = [];
+    saveDBLocal();
+    renderSidebar();
+    if (currentEquipId) renderCurrentTab();
+    if (currentCompanyId) renderCompanyDetail();
     showToast('Sincronizado! ✅', 'success');
   } catch (err) {
     showToast('Falha ao sincronizar: ' + err.message, 'error');
