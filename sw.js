@@ -1,4 +1,4 @@
-const CACHE = 'techkitchen-v2';
+const CACHE = 'techkitchen-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './sw.js'];
 
 self.addEventListener('install', e => {
@@ -19,6 +19,15 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+
+  // Chamadas de API nunca são cacheadas — sempre vão para a rede
+  const url = new URL(e.request.url);
+  if (url.pathname.startsWith('/api/')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
+  // Assets estáticos: cache-first, atualiza cache em background
   e.respondWith(
     caches.match(e.request).then(cached => {
       const network = fetch(e.request).then(res => {
