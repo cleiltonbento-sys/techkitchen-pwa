@@ -17,7 +17,8 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Sanitiza a chave: substitui qualquer caractere não-ASCII (ex: travessão U+2013) por hífen
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').replace(/[^\x00-\x7F]/g, '-');
   if (!apiKey) {
     return res.status(500).json({ error: 'Chave da API não configurada (ANTHROPIC_API_KEY ausente)' });
   }
