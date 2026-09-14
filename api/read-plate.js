@@ -36,15 +36,27 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Imagem ausente' });
   }
 
-  const prompt = `Você está lendo a plaqueta de identificação de um equipamento de cozinha industrial (forno, fogão, fritadeira, refrigerador, máquina de gelo, etc). Extraia estes campos da imagem:
-- brand: marca/fabricante
-- model: modelo (código ou nome)
-- category: tipo de equipamento em poucas palavras (ex: "Forno Combinado", "Máquina de Gelo", "Fritadeira a Gás")
-- voltage: tensão elétrica exata conforme indicada na plaqueta (ex: "220V", "380V", "127V", "Bivolt", "110/220V"). Se não identificar ou for equipamento a gás, retorne "".
-- power: potência elétrica do equipamento (ex: "3000W", "1,75kW", "5kW"). Para equipamentos a gás, retorne "Gás". Se não identificar, retorne "".
-- serial: número de série completo como aparece na plaqueta
+  const prompt = `Você está analisando a plaqueta de identificação de um equipamento de cozinha industrial (forno, fogão, fritadeira, refrigerador, máquina de gelo, etc).
 
-Se algum campo não estiver legível, retorne "" para ele. Responda APENAS com JSON válido, sem markdown, sem explicação:
+Extraia com MÁXIMA PRECISÃO estes campos da imagem:
+
+- brand: marca/fabricante do equipamento
+- model: modelo exato (código alfanumérico ou nome do modelo)
+- category: tipo de equipamento em poucas palavras (ex: "Forno Combinado", "Máquina de Gelo", "Fritadeira a Gás")
+- voltage: tensão elétrica seguida da classificação de fase. Combine os dois na resposta:
+  • 220V → "220V Monofásico" ou "220V Trifásico" conforme indicado
+  • 380V → "380V Trifásico" (quase sempre trifásico)
+  • 440V → "440V Trifásico" (quase sempre trifásico)
+  • 127V → "127V Monofásico"
+  • Indicadores de TRIFÁSICO na plaqueta: "3F", "3~", "3Ph", "III", símbolo Δ (delta) ou Y (estrela), "Three Phase"
+  • Indicadores de MONOFÁSICO: "1F", "1~", "1Ph", "Mono", "Single Phase"
+  • Se houver múltiplas tensões (ex: 220/380V), informe ambas com a fase de cada uma
+  • Se for equipamento a gás ou não houver tensão elétrica, retorne ""
+- power: potência elétrica total (ex: "3000W", "1,75kW", "5kW"). Para equipamentos a gás, retorne "Gás". Se não identificar, retorne "".
+- serial: número de série COMPLETO e EXATO como aparece na plaqueta. Procure por rótulos como "S/N:", "No. Série:", "N° Série:", "Série:", "Serial No.:", "SN:". Copie TODOS os caracteres — letras, números, hífens e barras — sem abreviar nem omitir nenhuma parte. Se não encontrar, retorne "".
+
+Se algum campo não estiver visível ou legível, retorne "" para ele.
+Responda APENAS com JSON válido, sem markdown, sem explicação:
 {"brand":"","model":"","category":"","voltage":"","power":"","serial":""}`;
 
   try {
