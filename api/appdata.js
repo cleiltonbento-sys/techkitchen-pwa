@@ -1,5 +1,5 @@
 // Armazena os dados do negócio via Vercel Blob (store privado).
-// @vercel/blob 2.x: store privado não usa parâmetro access no put().
+// @vercel/blob 2.x: store privado usa access: 'private'
 
 const { put, list } = require('@vercel/blob');
 
@@ -37,8 +37,9 @@ module.exports = async function handler(req, res) {
     try {
       const body = await readBody(req);
       const payload = JSON.parse(body);
-      // private store: sem parâmetro access
+      // private store: access: 'private'
       await put(BLOB_PATH, JSON.stringify(payload), {
+        access: 'private',
         contentType: 'application/json',
         addRandomSuffix: false,
         allowOverwrite: true,
