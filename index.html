@@ -2413,6 +2413,7 @@ function renderCompanyDetail() {
       <div class="company-tab-btn ${currentCompanyTab==='dados'?'active':''}" onclick="switchCompanyTab('dados')">Dados Gerais</div>
       <div class="company-tab-btn ${currentCompanyTab==='unidades'?'active':''}" onclick="switchCompanyTab('unidades')">Unidades</div>
       <div class="company-tab-btn ${currentCompanyTab==='equipamentos'?'active':''}" onclick="switchCompanyTab('equipamentos')">Equipamentos</div>
+      <div class="company-tab-btn ${currentCompanyTab==='historico'?'active':''}" onclick="switchCompanyTab('historico')">Histórico OS</div>
     </div>
     <div id="companyTabContent"></div>
   `;
@@ -2470,16 +2471,57 @@ function renderCompanyTabContent() {
     `;
   } else if (currentCompanyTab === 'equipamentos') {
     const equips = db.equipment.filter(e => e.companyId === company.id);
-    if (equips.length === 0) {
-      el.innerHTML = '<div class="empty-hint">Nenhum equipamento vinculado a esta empresa ainda.</div>';
+    const unlinked = db.equipment.filter(e => !e.companyId);
+    const equipRows = equips.length === 0
+      ? '<div class="empty-hint">Nenhum equipamento vinculado a esta empresa ainda.</div>'
+      : equips.map(e => {
+          const unit = (company.units||[]).find(u => u.id === e.unitId);
+          const sector = unit && (unit.sectors||[]).find(s => s.id === e.sectorId);
+          return `<div class="company-equip-row" style="cursor:pointer;" onclick="selectEquip('${e.id}')">
+            <span>🔧 ${e.brand} — ${e.model}${e.serial?' <small style=\'color:var(--muted)\'>S/N: '+e.serial+'</small>':''}</span>
+            <span style="color:var(--muted);">${unit?unit.name:'—'}${sector?' / '+sector.name:''}</span>
+          </div>`;
+        }).join('');
+    const unlinkedOptions = unlinked.length > 0
+      ? `<div class="unit-card" style="border-style:dashed;margin-top:14px;">
+          <h4>Vincular equipamento existente</h4>
+          <div class="mini-form">
+            <select id="linkEquipSel">
+              <option value="">— Selecione —</option>
+              ${unlinked.map(e => `<option value="${e.id}">${e.brand} — ${e.model}${e.serial?' (S/N: '+e.serial+')':''}</option>`).join('')}
+            </select>
+            <select id="linkUnitSel">
+              <option value="">— Unidade —</option>
+              ${(company.units||[]).map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="linkEquipToCompany('${company.id}')">Vincular</button>
+        </div>` : '';
+    el.innerHTML = equipRows + unlinkedOptions +
+      `<div style="margin-top:12px;">
+        <button class="btn btn-ghost btn-sm" onclick="openModalEquipForCompany('${company.id}')">+ Cadastrar novo equipamento nesta empresa</button>
+      </div>`;
+  } else if (currentCompanyTab === 'historico') {
+    const equips = db.equipment.filter(e => e.companyId === company.id);
+    const equipIds = equips.map(e => e.id);
+    const diags = db.diagnostics.filter(d => equipIds.includes(d.equipId))
+      .sort((a,b) => (b.date||'').localeCompare(a.date||''));
+    if (diags.length === 0) {
+      el.innerHTML = '<div class="empty-hint">Nenhuma OS registrada para os equipamentos desta empresa.</div>';
       return;
     }
-    el.innerHTML = equips.map(e => {
-      const unit = (company.units||[]).find(u => u.id === e.unitId);
-      const sector = unit && (unit.sectors||[]).find(s => s.id === e.sectorId);
-      return `<div class="company-equip-row">
-        <span>${e.brand} — ${e.model}</span>
-        <span style="color:var(--muted);">${unit?unit.name:'—'}${sector?' / '+sector.name:''}</span>
+    el.innerHTML = diags.map(d => {
+      const equip = db.equipment.find(e => e.id === d.equipId);
+      const unit = equip && (company.units||[]).find(u => u.id === equip.unitId);
+      return `<div class="company-equip-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:10px 0;">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+          <strong style="font-size:13px;">${equip?equip.brand+' — '+equip.model:'Equip. removido'}</strong>
+          <span style="font-size:11px;color:var(--muted);">${d.date||'—'}${unit?' · '+unit.name:''}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">👤 ${d.tech||'—'}</div>
+        ${d.symptom?`<div style="font-size:12.5px;">⚠️ ${d.symptom}</div>`:''}
+        ${d.desc?`<div style="font-size:12px;color:var(--muted);">✅ ${d.desc}</div>`:''}
+        ${d.parts&&d.parts.length?`<div style="font-size:11px;color:var(--muted);">🔩 Peças: ${d.parts.join(', ')}</div>`:''}
       </div>`;
     }).join('');
   }
@@ -2494,6 +2536,27 @@ function saveCompanyEdits() {
   saveDB();
   renderCompanyList();
   showToast('Dados atualizados! ✅', 'success');
+}
+
+function linkEquipToCompany(companyId) {
+  const equipId = document.getElementById('linkEquipSel').value;
+  if (!equipId) { showToast('Selecione um equipamento.', 'error'); return; }
+  const equip = db.equipment.find(e => e.id === equipId);
+  if (!equip) return;
+  const unitId = document.getElementById('linkUnitSel').value || null;
+  equip.companyId = companyId;
+  equip.unitId = unitId;
+  equip.sectorId = null;
+  saveDB();
+  renderCompanyTabContent();
+  showToast('Equipamento vinculado! ✅', 'success');
+}
+
+function openModalEquipForCompany(companyId) {
+  openModal('modalEquip');
+  const compSel = document.getElementById('newEquipCompany');
+  compSel.value = companyId;
+  onEquipCompanyChange();
 }
 
 function addUnit() {
@@ -2789,6 +2852,7 @@ function saveEquipment() {
   closeModal('modalEquip');
   renderSidebar();
   selectEquip(equip.id);
+  if (equip.companyId && equip.companyId === currentCompanyId) renderCompanyTabContent();
   showToast('Equipamento salvo! ✅', 'success');
   document.getElementById('newEquipModel').value = '';
   document.getElementById('newEquipLine').value = '';
