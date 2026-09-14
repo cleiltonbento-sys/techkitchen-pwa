@@ -48,12 +48,13 @@ Extraia com MÁXIMA PRECISÃO estes campos da imagem:
   • 380V → "380V Trifásico" (quase sempre trifásico)
   • 440V → "440V Trifásico" (quase sempre trifásico)
   • 127V → "127V Monofásico"
-  • Indicadores de TRIFÁSICO na plaqueta: "3F", "3~", "3Ph", "III", símbolo Δ (delta) ou Y (estrela), "Three Phase"
-  • Indicadores de MONOFÁSICO: "1F", "1~", "1Ph", "Mono", "Single Phase"
+  • Indicadores de TRIFÁSICO na plaqueta: "3AC" (padrão europeu/Rational), "3F", "3~", "3Ph", "III", símbolo Δ (delta) ou Y (estrela), "Three Phase", "3 Phase"
+  • Indicadores de MONOFÁSICO: "1AC", "1F", "1~", "1Ph", "Mono", "Single Phase"
+  • ATENÇÃO: "3AC 440V" significa 440V Trifásico; "3AC 380V" significa 380V Trifásico
   • Se houver múltiplas tensões (ex: 220/380V), informe ambas com a fase de cada uma
   • Se for equipamento a gás ou não houver tensão elétrica, retorne ""
-- power: potência elétrica total (ex: "3000W", "1,75kW", "5kW"). Para equipamentos a gás, retorne "Gás". Se não identificar, retorne "".
-- serial: número de série COMPLETO e EXATO como aparece na plaqueta. Procure por rótulos como "S/N:", "No. Série:", "N° Série:", "Série:", "Serial No.:", "SN:". Copie TODOS os caracteres — letras, números, hífens e barras — sem abreviar nem omitir nenhuma parte. Se não encontrar, retorne "".
+- power: potência elétrica total (ex: "3000W", "37,2kW", "5kW"). Aceite tanto "kW" quanto "W". Para equipamentos a gás, retorne "Gás". Se não identificar, retorne "".
+- serial: número de série COMPLETO e EXATO como aparece na plaqueta. Procure por rótulos como "serial – no.", "serial no.", "S/N:", "No. Série:", "N° Série:", "Série:", "SN:". Copie TODOS os caracteres — letras, números, hífens e barras — sem abreviar nem omitir nenhuma parte. Se não encontrar, retorne "".
 
 Se algum campo não estiver visível ou legível, retorne "" para ele.
 Responda APENAS com JSON válido, sem markdown, sem explicação:
