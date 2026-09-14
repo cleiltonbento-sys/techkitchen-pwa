@@ -1,5 +1,5 @@
-// Armazena os dados PRIVADOS do negócio.
-// Usa @vercel/blob 2.x — store público, blobs com URL pública.
+// Armazena os dados do negócio via Vercel Blob (store privado).
+// @vercel/blob 2.x: store privado não usa parâmetro access no put().
 
 const { put, list } = require('@vercel/blob');
 
@@ -22,12 +22,14 @@ module.exports = async function handler(req, res) {
     try {
       const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
       if (!blobs.length) return res.status(200).json(null);
-      const r = await fetch(blobs[0].url);
+      // downloadUrl includes auth for private stores
+      const blobUrl = blobs[0].downloadUrl || blobs[0].url;
+      const r = await fetch(blobUrl);
       if (!r.ok) return res.status(200).json(null);
       const data = await r.json();
       return res.status(200).json(data);
     } catch (err) {
-      return res.status(500).json({ error: 'Falha ao ler dados: ' + err.message });
+      return res.status(500).json({ error: 'Falha ao ler: ' + err.message });
     }
   }
 
@@ -35,15 +37,15 @@ module.exports = async function handler(req, res) {
     try {
       const body = await readBody(req);
       const payload = JSON.parse(body);
+      // private store: sem parâmetro access
       await put(BLOB_PATH, JSON.stringify(payload), {
-        access: 'public',
         contentType: 'application/json',
         addRandomSuffix: false,
         allowOverwrite: true,
       });
       return res.status(200).json({ ok: true });
     } catch (err) {
-      return res.status(500).json({ error: 'Falha ao salvar dados: ' + err.message });
+      return res.status(500).json({ error: 'Falha ao salvar: ' + err.message });
     }
   }
 
