@@ -1,10 +1,7 @@
-// Armazena os dados PRIVADOS do negócio: empresas, unidades, setores,
-// equipamentos, peças e diagnósticos.
-// Usa @vercel/blob — BLOB_READ_WRITE_TOKEN é injetado automaticamente
-// pelo Vercel quando um Blob store está conectado ao projeto.
-// O store está configurado como PRIVADO — usa access:'private' + download().
+// Armazena os dados PRIVADOS do negócio.
+// Usa @vercel/blob 2.x — store público, blobs com URL pública.
 
-const { put, list, download } = require('@vercel/blob');
+const { put, list } = require('@vercel/blob');
 
 const BLOB_PATH = 'appdata/main.json';
 
@@ -25,9 +22,9 @@ module.exports = async function handler(req, res) {
     try {
       const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
       if (!blobs.length) return res.status(200).json(null);
-      const response = await download(blobs[0].url);
-      const text = await response.text();
-      const data = JSON.parse(text);
+      const r = await fetch(blobs[0].url);
+      if (!r.ok) return res.status(200).json(null);
+      const data = await r.json();
       return res.status(200).json(data);
     } catch (err) {
       return res.status(500).json({ error: 'Falha ao ler dados: ' + err.message });
@@ -39,7 +36,7 @@ module.exports = async function handler(req, res) {
       const body = await readBody(req);
       const payload = JSON.parse(body);
       await put(BLOB_PATH, JSON.stringify(payload), {
-        access: 'private',
+        access: 'public',
         contentType: 'application/json',
         addRandomSuffix: false,
         allowOverwrite: true,
