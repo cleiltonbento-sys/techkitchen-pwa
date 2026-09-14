@@ -41,7 +41,7 @@ module.exports = async function handler(req, res) {
 Extraia com MÁXIMA PRECISÃO estes campos da imagem:
 
 - brand: marca/fabricante do equipamento
-- model: modelo exato (código alfanumérico ou nome do modelo)
+- model: modelo exato (código alfanumérico ou nome do modelo). Leia cada letra com atenção — confusões comuns: "F" vs "P", "E" vs "F", "0" vs "O". Para RATIONAL, modelos comuns: iCombi Classic, iCombi Pro, SCC, CPC; código como "LM200FE", "XS6-1", "CM61" etc.
 - category: tipo de equipamento em poucas palavras (ex: "Forno Combinado", "Máquina de Gelo", "Fritadeira a Gás")
 - voltage: tensão elétrica seguida da classificação de fase. Combine os dois na resposta:
   • 220V → "220V Monofásico" ou "220V Trifásico" conforme indicado
@@ -54,7 +54,7 @@ Extraia com MÁXIMA PRECISÃO estes campos da imagem:
   • Se houver múltiplas tensões (ex: 220/380V), informe ambas com a fase de cada uma
   • Se for equipamento a gás ou não houver tensão elétrica, retorne ""
 - power: potência elétrica total (ex: "3000W", "37,2kW", "5kW"). Aceite tanto "kW" quanto "W". Para equipamentos a gás, retorne "Gás". Se não identificar, retorne "".
-- serial: número de série COMPLETO e EXATO como aparece na plaqueta. Procure por rótulos como "serial – no.", "serial no.", "S/N:", "No. Série:", "N° Série:", "Série:", "SN:". Copie TODOS os caracteres — letras, números, hífens e barras — sem abreviar nem omitir nenhuma parte. Se não encontrar, retorne "".
+- serial: número de série COMPLETO e EXATO como aparece na plaqueta. Procure por rótulos como "serial – no.", "serial no.", "S/N:", "No. Série:", "N° Série:", "Série:", "SN:". Copie TODOS os caracteres — letras, números, hífens e barras — sem abreviar nem omitir nenhuma parte. ATENÇÃO ESPECIAL: leia cada caractere individualmente com cuidado extremo — confusões comuns: "1" (um) vs "I" (letra I) vs "l" (letra L), "0" (zero) vs "O" (letra O), "2" vs "Z", "5" vs "S", "8" vs "B", "F" vs "P". Para equipamentos RATIONAL, o serial segue o padrão: [E ou G][2 dígitos de ano][1 letra][1 letra][sequência numérica] — ex: E21MJ23123104562. Se não encontrar, retorne "".
 
 Se algum campo não estiver visível ou legível, retorne "" para ele.
 Responda APENAS com JSON válido, sem markdown, sem explicação:
@@ -69,8 +69,8 @@ Responda APENAS com JSON válido, sem markdown, sem explicação:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 400,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 512,
         messages: [{
           role: 'user',
           content: [
