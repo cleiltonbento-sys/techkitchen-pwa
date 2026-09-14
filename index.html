@@ -1097,17 +1097,24 @@ async function manualSync() {
   const btn = document.getElementById('syncBtn');
   if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
   try {
+    // Verifica o que está na nuvem
     const res = await fetch('/api/appdata');
     if (!res.ok) throw new Error('status ' + res.status);
     const cloud = await res.json();
-    if (!cloud) {
-      showToast('Nuvem vazia — salve algo primeiro.', 'error');
-      return;
-    }
-    if (cloud.error) {
+
+    if (cloud && cloud.error) {
       showToast('Erro na nuvem: ' + cloud.error, 'error');
       return;
     }
+
+    if (!cloud) {
+      // Nuvem vazia — envia dados locais para a nuvem
+      await pushToCloud();
+      showToast('Dados enviados para a nuvem ✅', 'success');
+      return;
+    }
+
+    // Nuvem tem dados — recebe para este aparelho
     db = cloud;
     if (!db.companies) db.companies = [];
     if (!db.techDocs) db.techDocs = {};
