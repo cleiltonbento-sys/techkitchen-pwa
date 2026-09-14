@@ -868,11 +868,18 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
       <div class="form-group">
         <label>Tensão</label>
         <select id="newEquipVoltage">
-          <option value="110V">110V</option>
-          <option value="220V" selected>220V</option>
-          <option value="380V">380V</option>
+          <option value="127V Monofásico">127V Monofásico</option>
+          <option value="220V Monofásico" selected>220V Monofásico</option>
+          <option value="220V Trifásico">220V Trifásico</option>
+          <option value="380V Trifásico">380V Trifásico</option>
+          <option value="440V Trifásico">440V Trifásico</option>
           <option value="Bivolt">Bivolt</option>
+          <option value="Gás (não elétrico)">Gás (não elétrico)</option>
         </select>
+      </div>
+      <div class="form-group full">
+        <label>Nº de Série</label>
+        <input type="text" id="newEquipSerial" placeholder="Ex: E21M.X2Y321046962">
       </div>
       <div class="form-group full">
         <label>Empresa Proprietária <span style="font-weight:400;color:var(--muted);font-size:11px;">(opcional)</span></label>
@@ -1852,6 +1859,7 @@ function renderParts() {
         <span class="meta-tag">📌 ${equip.brand}</span>
         <span class="meta-tag">⚡ ${equip.voltage}</span>
         ${equip.line ? `<span class="meta-tag">🍽 ${equip.line}</span>` : ''}
+        ${equip.serial ? `<span class="meta-tag">🔢 S/N: ${equip.serial}</span>` : ''}
         ${equip.obs ? `<span class="meta-tag">📝 ${equip.obs}</span>` : ''}
       </div>
     </div>
@@ -2637,13 +2645,22 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 // ============================================================
 // SAVE FUNCTIONS
 // ============================================================
-function fillEquipVoltageSelect(powerText){
+function fillEquipVoltageSelect(voltageText){
   const sel = document.getElementById('newEquipVoltage');
-  const t = (powerText || '').toUpperCase();
-  if (t.includes('380')) sel.value = '380V';
-  else if (t.includes('110') || t.includes('127')) sel.value = '110V';
+  const t = (voltageText || '').toUpperCase().trim();
+  if (!t) return;
+  for (const opt of sel.options) {
+    if (opt.value.toUpperCase() === t) { sel.value = opt.value; return; }
+  }
+  const isTri = t.includes('TRIFÁSICO') || t.includes('TRIFAS') || t.includes('3AC') || t.includes('3F') || t.includes('3~') || t.includes('3PH') || t.includes('THREE');
+  const isMono = t.includes('MONOFÁSICO') || t.includes('MONOFAS') || t.includes('1AC') || t.includes('1F') || t.includes('MONO') || t.includes('SINGLE');
+  if (t.includes('440')) sel.value = '440V Trifásico';
+  else if (t.includes('380')) sel.value = '380V Trifásico';
+  else if (t.includes('220') && isTri) sel.value = '220V Trifásico';
+  else if (t.includes('220')) sel.value = '220V Monofásico';
+  else if (t.includes('127') || t.includes('110')) sel.value = '127V Monofásico';
   else if (t.includes('BIVOLT')) sel.value = 'Bivolt';
-  else sel.value = '220V';
+  else if (t.includes('GÁS') || t.includes('GAS')) sel.value = 'Gás (não elétrico)';
 }
 
 function matchBrandOption(brandText){
@@ -2732,11 +2749,10 @@ document.getElementById('plateFileInput').addEventListener('change', async funct
     const brandMatched = matchBrandOption(parsed.brand);
     document.getElementById('newEquipModel').value = parsed.model || '';
     document.getElementById('newEquipLine').value = parsed.category || '';
-    fillEquipVoltageSelect(parsed.power);
-
+    fillEquipVoltageSelect(parsed.voltage);
+    if (parsed.serial) document.getElementById('newEquipSerial').value = parsed.serial;
     let obsLines = [];
-    if (parsed.serial) obsLines.push('Nº de série: ' + parsed.serial);
-    if (parsed.power) obsLines.push('Potência/Tensão (plaqueta): ' + parsed.power);
+    if (parsed.power) obsLines.push('Potência: ' + parsed.power);
     document.getElementById('newEquipObs').value = obsLines.join('\n');
 
     statusEl.textContent = '✅ Plaqueta lida — confira os campos antes de salvar';
@@ -2762,6 +2778,7 @@ function saveEquipment() {
     brand, model,
     line: document.getElementById('newEquipLine').value.trim(),
     voltage: document.getElementById('newEquipVoltage').value,
+    serial: document.getElementById('newEquipSerial').value.trim(),
     companyId: document.getElementById('newEquipCompany').value || null,
     unitId: document.getElementById('newEquipUnit').value || null,
     sectorId: document.getElementById('newEquipSector').value || null,
@@ -2775,6 +2792,7 @@ function saveEquipment() {
   showToast('Equipamento salvo! ✅', 'success');
   document.getElementById('newEquipModel').value = '';
   document.getElementById('newEquipLine').value = '';
+  document.getElementById('newEquipSerial').value = '';
   document.getElementById('newEquipObs').value = '';
 }
 
