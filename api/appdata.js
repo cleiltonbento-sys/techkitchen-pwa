@@ -20,16 +20,21 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
-      if (!blobs.length) return res.status(200).json(null);
-      // downloadUrl includes auth for private stores
-      const blobUrl = blobs[0].downloadUrl || blobs[0].url;
+      const listResult = await list({ prefix: BLOB_PATH, limit: 1 });
+      const blobs = listResult.blobs;
+      if (!blobs || !blobs.length) {
+        return res.status(200).json({ _debug: true, blobs: blobs, listResult });
+      }
+      const blob = blobs[0];
+      const blobUrl = blob.downloadUrl || blob.url;
       const r = await fetch(blobUrl);
-      if (!r.ok) return res.status(200).json(null);
+      if (!r.ok) {
+        return res.status(200).json({ _debug: true, fetchStatus: r.status, blobUrl: blobUrl.substring(0, 80) });
+      }
       const data = await r.json();
       return res.status(200).json(data);
     } catch (err) {
-      return res.status(500).json({ error: 'Falha ao ler: ' + err.message });
+      return res.status(500).json({ error: 'Falha ao ler: ' + err.message, stack: err.stack });
     }
   }
 
@@ -37,14 +42,13 @@ module.exports = async function handler(req, res) {
     try {
       const body = await readBody(req);
       const payload = JSON.parse(body);
-      // private store: access: 'private'
-      await put(BLOB_PATH, JSON.stringify(payload), {
+      const putResult = await put(BLOB_PATH, JSON.stringify(payload), {
         access: 'private',
         contentType: 'application/json',
         addRandomSuffix: false,
         allowOverwrite: true,
       });
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, url: putResult.url });
     } catch (err) {
       return res.status(500).json({ error: 'Falha ao salvar: ' + err.message });
     }
