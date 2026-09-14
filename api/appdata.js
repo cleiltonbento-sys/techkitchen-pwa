@@ -1,5 +1,5 @@
 // Armazena os dados do negócio via Vercel Blob (store privado).
-// @vercel/blob 2.x: store privado usa access: 'private'
+// @vercel/blob 2.x: private store — leitura requer Authorization header com BLOB_READ_WRITE_TOKEN
 
 const { put, list } = require('@vercel/blob');
 
@@ -20,21 +20,19 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const listResult = await list({ prefix: BLOB_PATH, limit: 1 });
-      const blobs = listResult.blobs;
-      if (!blobs || !blobs.length) {
-        return res.status(200).json({ _debug: true, blobs: blobs, listResult });
-      }
-      const blob = blobs[0];
-      const blobUrl = blob.downloadUrl || blob.url;
-      const r = await fetch(blobUrl);
-      if (!r.ok) {
-        return res.status(200).json({ _debug: true, fetchStatus: r.status, blobUrl: blobUrl.substring(0, 80) });
-      }
+      const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
+      if (!blobs.length) return res.status(200).json(null);
+      const blobUrl = blobs[0].url;
+      // Private blobs require the store token for server-side fetch
+      const token = process.env.BLOB_READ_WRITE_TOKEN;
+      const r = await fetch(blobUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!r.ok) return res.status(200).json(null);
       const data = await r.json();
       return res.status(200).json(data);
     } catch (err) {
-      return res.status(500).json({ error: 'Falha ao ler: ' + err.message, stack: err.stack });
+      return res.status(500).json({ error: 'Falha ao ler: ' + err.message });
     }
   }
 
@@ -42,13 +40,13 @@ module.exports = async function handler(req, res) {
     try {
       const body = await readBody(req);
       const payload = JSON.parse(body);
-      const putResult = await put(BLOB_PATH, JSON.stringify(payload), {
+      await put(BLOB_PATH, JSON.stringify(payload), {
         access: 'private',
         contentType: 'application/json',
         addRandomSuffix: false,
         allowOverwrite: true,
       });
-      return res.status(200).json({ ok: true, url: putResult.url });
+      return res.status(200).json({ ok: true });
     } catch (err) {
       return res.status(500).json({ error: 'Falha ao salvar: ' + err.message });
     }
