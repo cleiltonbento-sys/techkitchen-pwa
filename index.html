@@ -664,6 +664,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     TechKitchen <span>/ Banco de Peças</span>
   </div>
   <div class="header-actions">
+    <button class="btn btn-ghost btn-sm" id="syncBtn" onclick="manualSync()" title="Sincronizar dados com a nuvem">🔄</button>
     <button class="btn btn-ghost btn-sm" onclick="openCompanies()">🏢 Empresas</button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('modalEquip')">+ Equipamento</button>
     <button class="btn btn-primary btn-sm" onclick="openModal('modalPart')">+ Peça</button>
@@ -1089,6 +1090,32 @@ async function pushToCloud() {
     });
   } catch (err) {
     console.warn('Não foi possível salvar na nuvem agora (ficou salvo neste aparelho):', err.message);
+  }
+}
+
+async function manualSync() {
+  const btn = document.getElementById('syncBtn');
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  try {
+    const res = await fetch('/api/appdata');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const cloud = await res.json();
+    if (cloud && (cloud.equipment || cloud.companies)) {
+      db = cloud;
+      if (!db.companies) db.companies = [];
+      if (!db.techDocs) db.techDocs = {};
+      if (!db.parts) db.parts = [];
+      if (!db.diagnostics) db.diagnostics = [];
+      saveDBLocal();
+      renderSidebar();
+      if (currentEquipId) renderCurrentTab();
+      if (currentCompanyId) renderCompanyDetail();
+    }
+    showToast('Sincronizado! ✅', 'success');
+  } catch (err) {
+    showToast('Falha ao sincronizar: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.textContent = '🔄'; btn.disabled = false; }
   }
 }
 
