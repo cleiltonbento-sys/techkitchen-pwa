@@ -1124,6 +1124,13 @@ async function manualSync() {
     renderSidebar();
     if (currentEquipId) renderCurrentTab();
     if (currentCompanyId) renderCompanyDetail();
+    // Recarrega índice de documentos técnicos para sincronizar PDFs de outros aparelhos
+    techDocsIndexLoaded = false;
+    await loadTechDocsIndex();
+    if (currentEquipId) {
+      const equip = db.equipment ? db.equipment.find(e => e.id === currentEquipId) : null;
+      if (equip) renderTechDocsUI(equip, docKey(equip));
+    }
     showToast('Sincronizado! ✅', 'success');
   } catch (err) {
     showToast('Falha ao sincronizar: ' + err.message, 'error');
