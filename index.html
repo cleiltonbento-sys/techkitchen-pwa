@@ -2470,10 +2470,10 @@ function renderCompanyDetail() {
       </div>
     </div>
     <div class="company-tabs">
-      <div class="company-tab-btn ${currentCompanyTab==='dados'?'active':''}" onclick="switchCompanyTab('dados')">Dados Gerais</div>
+      <div class="company-tab-btn ${currentCompanyTab==='dados'?'active':''}" onclick="switchCompanyTab('dados')">Dados</div>
       <div class="company-tab-btn ${currentCompanyTab==='unidades'?'active':''}" onclick="switchCompanyTab('unidades')">Unidades</div>
-      <div class="company-tab-btn ${currentCompanyTab==='equipamentos'?'active':''}" onclick="switchCompanyTab('equipamentos')">Equipamentos</div>
-      <div class="company-tab-btn ${currentCompanyTab==='historico'?'active':''}" onclick="switchCompanyTab('historico')">Histórico OS</div>
+      <div class="company-tab-btn ${currentCompanyTab==='equipamentos'?'active':''}" onclick="switchCompanyTab('equipamentos')">Equips.</div>
+      <div class="company-tab-btn ${currentCompanyTab==='historico'?'active':''}" onclick="switchCompanyTab('historico')">Histórico</div>
     </div>
     <div id="companyTabContent"></div>
   `;
@@ -2567,11 +2567,7 @@ function renderCompanyTabContent() {
     const diags = db.diagnostics.filter(d => equipIds.includes(d.equipId))
       .sort((a,b) => (b.date||'').localeCompare(a.date||''));
     if (diags.length === 0) {
-      if (equips.length === 0) {
-        el.innerHTML = '<div class="empty-hint">Nenhum equipamento vinculado a esta empresa.<br><small style="color:var(--muted)">Vincule equipamentos na aba Equipamentos para ver o histórico de OS.</small></div>';
-      } else {
-        el.innerHTML = `<div class="empty-hint">Nenhuma OS registrada para os ${equips.length} equipamento(s) desta empresa.</div>`;
-      }
+      el.innerHTML = '<div class="empty-hint">Nenhuma OS registrada para os equipamentos desta empresa.</div>';
       return;
     }
     el.innerHTML = diags.map(d => {
