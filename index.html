@@ -2567,7 +2567,11 @@ function renderCompanyTabContent() {
     const diags = db.diagnostics.filter(d => equipIds.includes(d.equipId))
       .sort((a,b) => (b.date||'').localeCompare(a.date||''));
     if (diags.length === 0) {
-      el.innerHTML = '<div class="empty-hint">Nenhuma OS registrada para os equipamentos desta empresa.</div>';
+      if (equips.length === 0) {
+        el.innerHTML = '<div class="empty-hint">Nenhum equipamento vinculado a esta empresa.<br><small style="color:var(--muted)">Vincule equipamentos na aba Equipamentos para ver o histórico de OS.</small></div>';
+      } else {
+        el.innerHTML = `<div class="empty-hint">Nenhuma OS registrada para os ${equips.length} equipamento(s) desta empresa.</div>`;
+      }
       return;
     }
     el.innerHTML = diags.map(d => {
