@@ -1068,6 +1068,7 @@ if (!db.brands || db.brands.length === 0) db.brands = DEFAULT_BRANDS.map(b => ({
 // é a fonte de verdade compartilhada entre aparelhos.
 // ============================================================
 let cloudSynced = false;
+let lastSyncAt = 0;
 
 async function syncFromCloud() {
   try {
@@ -1085,6 +1086,7 @@ async function syncFromCloud() {
       if (currentEquipId) renderCurrentTab();
     }
     cloudSynced = true;
+    lastSyncAt = Date.now();
   } catch (err) {
     console.warn('Sincronização com a nuvem falhou, usando dados locais:', err.message);
   }
@@ -1148,6 +1150,7 @@ async function manualSync() {
   } catch (err) {
     showToast('Falha ao sincronizar: ' + err.message, 'error');
   } finally {
+    lastSyncAt = Date.now();
     if (btn) { btn.textContent = '🔄'; btn.disabled = false; }
   }
 }
@@ -3219,6 +3222,18 @@ function showToast(msg, type = 'success') {
 // ============================================================
 renderSidebar();
 syncFromCloud();
+
+// ── AUTO-SYNC ao voltar ao app ─────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const agora = Date.now();
+    if (agora - lastSyncAt > 30_000) {
+      const btn = document.getElementById('syncBtn');
+      if (btn) btn.textContent = '⏳';
+      syncFromCloud().finally(() => { if (btn) btn.textContent = '🔄'; });
+    }
+  }
+});
 
 // ── PWA INSTALL ─────────────────────────────
 let deferredPrompt = null;
