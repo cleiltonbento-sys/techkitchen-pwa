@@ -2088,6 +2088,35 @@ async function renderExplodedArea(equip) {
   if (!area) return;
   if (_explodedURL) { URL.revokeObjectURL(_explodedURL); _explodedURL = null; }
 
+  const key = docKey(equip);
+  if (!techDocsIndexLoaded) await loadTechDocsIndex();
+
+  // 1. Verificar se há PDF sincronizado na nuvem (slot 'explodida')
+  const cloudSlot = techDocsIndex[key]?.explodida;
+  const cloudFiles = Array.isArray(cloudSlot) ? cloudSlot : (cloudSlot ? [cloudSlot] : []);
+  const cloudFile = cloudFiles[0] || null;
+
+  if (cloudFile?.url) {
+    const viewer = `<object data="${cloudFile.url}#view=FitH" type="application/pdf" style="width:100%;height:520px;border:0;border-radius:10px;background:#fff">
+         <div class="exploded-placeholder" style="cursor:default">
+           <div class="icon">📄</div>
+           <p>Seu navegador não exibe PDF embutido.<br><small>Use <strong>Abrir</strong> abaixo.</small></p>
+         </div>
+       </object>`;
+    area.innerHTML = `
+      ${viewer}
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted);margin-right:auto">☁️ ${cloudFile.name || 'arquivo'}</span>
+        <a class="btn btn-ghost btn-sm" href="${cloudFile.url}" target="_blank" rel="noopener" style="text-decoration:none">Abrir</a>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">🔄 Substituir
+          <input type="file" accept="application/pdf" style="display:none;" onchange="handleExplodedUpload(event,'${equip.id}')">
+        </label>
+        <button class="btn btn-danger btn-sm" onclick="removeExplodedCloud('${key}','${cloudFile.id||''}','${equip.id}')">🗑 Excluir</button>
+      </div>`;
+    return;
+  }
+
+  // 2. Fallback: arquivo local (imagem salva no IndexedDB deste aparelho)
   const input = `<input type="file" id="uploadExploded_${equip.id}" accept="image/*,application/pdf,.pdf" style="display:none" onchange="handleExplodedUpload(event,'${equip.id}')">`;
   let rec = null;
   try { rec = await fileGet('exploded_' + equip.id); } catch (e) { console.warn(e); }
@@ -2097,7 +2126,7 @@ async function renderExplodedArea(equip) {
       <div class="exploded-placeholder" onclick="triggerImageUpload('${equip.id}')">
         <div class="icon">📐</div>
         <p>Clique para <strong>adicionar a vista explodida</strong> do ${equip.model}<br>
-        <small>Formatos aceitos: JPG, PNG, WEBP e PDF (até 20 MB)</small></p>
+        <small>PDF sincroniza entre aparelhos · Imagem fica só neste aparelho</small></p>
       </div>${input}`;
     return;
   }
@@ -2116,7 +2145,7 @@ async function renderExplodedArea(equip) {
   area.innerHTML = `
     ${viewer}
     <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:12px;color:var(--muted);margin-right:auto">${rec.name || 'arquivo'} · ${humanSize(rec.size)}</span>
+      <span style="font-size:12px;color:var(--muted);margin-right:auto">💾 Local: ${rec.name || 'arquivo'} · ${humanSize(rec.size)}</span>
       <a class="btn btn-ghost btn-sm" href="${_explodedURL}" target="_blank" rel="noopener" style="text-decoration:none">Abrir</a>
       <button class="btn btn-ghost btn-sm" onclick="downloadExploded('${equip.id}')">⬇ Baixar</button>
       <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload('${equip.id}')">Trocar</button>
@@ -2142,6 +2171,51 @@ async function handleExplodedUpload(event, equipId) {
     event.target.value = '';
     return;
   }
+
+  // PDF → nuvem (sincroniza entre aparelhos)
+  if (isPDF) {
+    const equip = db.equipment.find(e => e.id === equipId);
+    if (!equip) return;
+    const key = docKey(equip);
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    const fileId = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const area = document.getElementById('explodedArea');
+    const ph = area?.querySelector('.exploded-placeholder');
+    if (ph) ph.innerHTML = '<div class="icon">⏳</div><p>Enviando para a nuvem…</p>';
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const totalChunks = Math.ceil(bytes.length / CHUNK_SIZE);
+      for (let i = 0; i < totalChunks; i++) {
+        const slice = bytes.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        let binary = '';
+        slice.forEach(b => binary += String.fromCharCode(b));
+        const r = await fetch('/api/techdocs?action=upload-chunk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, slotKey: 'explodida', fileId, chunkIndex: i, chunkData: btoa(binary) }),
+        }).then(r => r.json());
+        if (r.error) throw new Error(r.error);
+      }
+      const result = await fetch('/api/techdocs?action=finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, slotKey: 'explodida', fileId, totalChunks, fileName: file.name }),
+      }).then(r => r.json());
+      if (result.error) throw new Error(result.error);
+      if (!techDocsIndex[key]) techDocsIndex[key] = {};
+      techDocsIndex[key].explodida = [{ id: fileId, name: file.name, updatedAt: new Date().toISOString(), url: result.url }];
+      await renderExplodedArea(equip);
+      showToast('Vista explodida enviada! ☁️ Sincroniza em todos os aparelhos.', 'success');
+    } catch (err) {
+      showToast('Falha ao enviar: ' + err.message, 'error');
+      await renderExplodedArea(equip);
+    }
+    event.target.value = '';
+    return;
+  }
+
+  // Imagem → local (IndexedDB deste aparelho)
   try {
     await filePut('exploded_' + equipId, { name: file.name, type: file.type, size: file.size, blob: file, savedAt: new Date().toISOString() });
     const equip = db.equipment.find(e => e.id === equipId);
@@ -2151,6 +2225,29 @@ async function handleExplodedUpload(event, equipId) {
     showToast('Não foi possível salvar o arquivo: ' + err.message, 'error');
   }
   event.target.value = '';
+}
+
+async function removeExplodedCloud(key, fileId, equipId) {
+  if (!confirm('Remover a vista explodida? Ela deixa de aparecer em todos os aparelhos.')) return;
+  try {
+    const res = await fetch('/api/techdocs?action=delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, slotKey: 'explodida', fileId }),
+    });
+    if (!res.ok) throw new Error('status ' + res.status);
+    if (techDocsIndex[key]?.explodida) {
+      const slot = Array.isArray(techDocsIndex[key].explodida) ? techDocsIndex[key].explodida : [techDocsIndex[key].explodida];
+      const updated = slot.filter(f => f.id !== fileId);
+      if (updated.length === 0) delete techDocsIndex[key].explodida;
+      else techDocsIndex[key].explodida = updated;
+    }
+    const equip = db.equipment.find(e => e.id === equipId);
+    if (equip) await renderExplodedArea(equip);
+    showToast('Vista explodida removida.', 'success');
+  } catch (err) {
+    showToast('Falha ao remover: ' + err.message, 'error');
+  }
 }
 
 async function downloadExploded(equipId) {
