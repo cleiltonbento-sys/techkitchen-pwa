@@ -2168,7 +2168,7 @@ async function renderExplodedArea(equip) {
       ${viewer}
       <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:12px;color:var(--muted);margin-right:auto">☁️ ${cloudFile.name || 'arquivo'}</span>
-        <a class="btn btn-ghost btn-sm" href="${cloudFile.url}" target="_blank" rel="noopener" style="text-decoration:none">Abrir</a>
+        <button class="btn btn-ghost btn-sm" onclick="openPDF('${cloudFile.url}','${(cloudFile.name||\'\').replace(/\'/g,\"\\\'\")}')">Abrir</button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer">🔄 Substituir
           <input type="file" accept="application/pdf" style="display:none;" onchange="handleExplodedUpload(event,'${equip.id}')">
         </label>
@@ -2207,7 +2207,7 @@ async function renderExplodedArea(equip) {
     ${viewer}
     <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:12px;color:var(--muted);margin-right:auto">💾 Local: ${rec.name || 'arquivo'} · ${humanSize(rec.size)}</span>
-      <a class="btn btn-ghost btn-sm" href="${_explodedURL}" target="_blank" rel="noopener" style="text-decoration:none">Abrir</a>
+      <button class="btn btn-ghost btn-sm" onclick="openPDF('${_explodedURL}','${(rec.name||\'PDF\').replace(/\'/g,\"\\\'\")}')">Abrir</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadExploded('${equip.id}')">⬇ Baixar</button>
       <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload('${equip.id}')">Trocar</button>
       <button class="btn btn-danger btn-sm" onclick="removeExploded('${equip.id}')">🗑 Excluir</button>
@@ -2443,7 +2443,7 @@ function renderTechDocsUI(equip, key) {
             <div class="slot-label">${slot.label}</div>
             ${files.map(f => `
               <div class="techdoc-file">
-                ${f.url ? `<a href="${f.url}" target="_blank" title="${f.name}">${f.name}</a>` : `<span title="${f.name}">${f.name}</span>`}
+                ${f.url ? `<a href="javascript:void(0)" onclick="openPDF('${f.url}','${(f.name||\'\').replace(/\'/g,\"\\\'\")} ')" title="${f.name}" style="cursor:pointer">${f.name}</a>` : `<span title="${f.name}">${f.name}</span>`}
                 <span class="rm" onclick="removeTechDoc('${key}','${slot.key}','${f.id || ''}')" title="Remover">🗑</span>
               </div>
             `).join('')}
@@ -3293,12 +3293,34 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ── ABRIR PDF (com botão voltar no modo PWA) ──────────────────────────────
+function openPDF(url, name) {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (!isStandalone) { window.open(url, '_blank', 'noopener'); return; }
+  const modal = document.createElement('div');
+  modal.id = 'pdfViewerModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#111;';
+  modal.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card-bg,#1e1e2e);border-bottom:1px solid var(--border,#333);flex-shrink:0;">
+      <button onclick="document.getElementById('pdfViewerModal').remove()" style="background:none;border:none;color:var(--text,#fff);font-size:22px;cursor:pointer;line-height:1;padding:2px 8px 2px 0;">&#8592;</button>
+      <span style="color:var(--text,#fff);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">${name || 'Catálogo PDF'}</span>
+    </div>
+    <iframe src="${url}" style="flex:1;border:none;width:100%;background:#fff;"></iframe>`;
+  document.body.appendChild(modal);
+}
+
 // ── PWA INSTALL ─────────────────────────────
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredPrompt = e;
-  document.getElementById('pwaBar').style.display = 'flex';
+  // Não mostra se já está em standalone ou se o usuário já dispensou
+  const alreadyInstalled = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('tk_pwabar_dismissed') === '1'; } catch (_) {}
+  if (!alreadyInstalled && !dismissed) {
+    document.getElementById('pwaBar').style.display = 'flex';
+  }
 });
 // iPadOS moderno se identifica como Mac: checa also maxTouchPoints
 const isIOSDevice = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
