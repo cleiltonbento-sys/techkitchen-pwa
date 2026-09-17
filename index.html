@@ -107,7 +107,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     .io-card { padding: 14px; }
     .welcome { padding: 20px; }
     .welcome-icon { font-size: 48px; }
-    #pwaBar { display: flex; }
+    /* pwaBar: controlado só por JS */
   }
 
   /* Desktop estreito: empilha o modal de empresas antes do breakpoint mobile */
@@ -3309,8 +3309,10 @@ document.addEventListener('visibilitychange', () => {
 
 // ── ABRIR PDF (com botão voltar no modo PWA) ──────────────────────────────
 function openPDF(url, name) {
+  const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-  if (!isStandalone) { window.open(url, '_blank', 'noopener'); return; }
+  if (!isMobile && !isStandalone) { window.open(url, '_blank', 'noopener'); return; }
   const modal = document.createElement('div');
   modal.id = 'pdfViewerModal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#111;';
@@ -3366,13 +3368,15 @@ window.addEventListener('appinstalled', () => {
   showToast('App instalado com sucesso! 🎉', 'success');
 });
 
-// Mostrar barra no mobile mesmo sem prompt (para iOS)
-if (/iphone|ipad|ipod|android/i.test(navigator.userAgent) || isIOSDevice) {
+// Controla visibilidade do banner de instalação
+(function() {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
   let dismissed = false;
-  try { dismissed = localStorage.getItem('tk_pwabar_dismissed') === '1'; } catch (e) {}
-  if (!isStandalone && !dismissed) {
-    // No iOS o texto da barra explica o caminho real do Safari
+  try { dismissed = localStorage.getItem('tk_pwabar_dismissed') === '1'; } catch (_) {}
+  const bar = document.getElementById('pwaBar');
+  if (!bar) return;
+  if (isStandalone || dismissed) { bar.style.display = 'none'; return; }
+  if (/iphone|ipad|ipod|android/i.test(navigator.userAgent) || isIOSDevice) {
     if (isIOSDevice) {
       const isSafari = /^((?!chrome|crios|fxios|edgios|opr).)*safari/i.test(navigator.userAgent);
       document.getElementById('pwaBarText').textContent = isSafari
@@ -3380,12 +3384,9 @@ if (/iphone|ipad|ipod|android/i.test(navigator.userAgent) || isIOSDevice) {
         : '📲 Para instalar no iPhone, abra este site no Safari';
       document.getElementById('pwaBarBtn').textContent = 'Como instalar';
     }
-    setTimeout(() => {
-      const bar = document.getElementById('pwaBar');
-      if (bar) bar.style.display = 'flex';
-    }, 2000);
+    setTimeout(() => { bar.style.display = 'flex'; }, 2000);
   }
-}
+})();
 </script>
 </body>
 </html>
