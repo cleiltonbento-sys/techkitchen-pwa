@@ -1099,9 +1099,6 @@ async function syncFromCloud() {
         saveDBLocal();
         renderSidebar();
         if (currentEquipId) renderCurrentTab();
-      } else if (localTs > cloudTs) {
-        pushToCloud();
-      }
     }
     cloudSynced = true;
     lastSyncAt = Date.now();
