@@ -677,6 +677,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     TechKitchen <span>/ Banco de Peças</span>
   </div>
   <div class="header-actions">
+    <span id="syncBadge" title="Último save na nuvem" style="font-size:11px;color:var(--muted);cursor:default;padding:2px 6px;border-radius:6px;background:var(--surface2,rgba(255,255,255,.06));">☁️ --:--</span>
     <button class="btn btn-ghost btn-sm" id="syncBtn" onclick="manualSync()" title="Sincronizar dados com a nuvem">🔄</button>
     <button class="btn btn-ghost btn-sm" onclick="openCompanies()">🏢 Empresas</button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('modalEquip')">+ Equipamento</button>
@@ -1061,8 +1062,10 @@ function loadDB() {
 }
 
 function saveDB() {
+  db._savedAt = Date.now();
   saveDBLocal();
   pushToCloud();
+  updateSyncBadge();
 }
 
 let db = loadDB();
@@ -1086,7 +1089,8 @@ async function syncFromCloud() {
     if (cloud && (cloud.equipment || cloud.companies)) {
       const cloudTs = cloud._savedAt || 0;
       const localTs = db._savedAt || 0;
-      if (cloudTs >= localTs) {
+      if (cloudTs > localTs) {
+        try { localStorage.setItem('techkitchen_db_presync', JSON.stringify(db)); } catch (_) {}
         db = cloud;
         if (!db.companies) db.companies = [];
         if (!db.techDocs) db.techDocs = {};
@@ -1095,10 +1099,13 @@ async function syncFromCloud() {
         saveDBLocal();
         renderSidebar();
         if (currentEquipId) renderCurrentTab();
+      } else if (localTs > cloudTs) {
+        pushToCloud();
       }
     }
     cloudSynced = true;
     lastSyncAt = Date.now();
+    updateSyncBadge();
   } catch (err) {
     console.warn('Sincronização com a nuvem falhou, usando dados locais:', err.message);
   }
@@ -1108,10 +1115,17 @@ function saveDBLocal() {
   localStorage.setItem('techkitchen_db', JSON.stringify(db));
 }
 
+function updateSyncBadge() {
+  const el = document.getElementById('syncBadge');
+  if (!el) return;
+  const t = db._savedAt ? new Date(db._savedAt).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '--:--';
+  el.textContent = '☁️ ' + t;
+  el.title = 'Último save na nuvem: ' + (db._savedAt ? new Date(db._savedAt).toLocaleString('pt-BR') : 'nunca');
+}
+
+
 async function pushToCloud() {
   try {
-    db._savedAt = Date.now();
-    saveDBLocal();
     await fetch('/api/appdata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
