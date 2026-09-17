@@ -1089,7 +1089,11 @@ async function syncFromCloud() {
     if (cloud && (cloud.equipment || cloud.companies)) {
       const cloudTs = cloud._savedAt || 0;
       const localTs = db._savedAt || 0;
-      if (cloudTs > localTs) {
+      const cloudEquipCount = (cloud.equipment || []).length;
+      const localEquipCount = (db.equipment || []).length;
+      // Use cloud if it has MORE equipment (data safety) OR is newer
+      const useCloud = cloudEquipCount > localEquipCount || cloudTs > localTs;
+      if (useCloud) {
         try { localStorage.setItem('techkitchen_db_presync', JSON.stringify(db)); } catch (_) {}
         db = cloud;
         if (!db.companies) db.companies = [];
@@ -1124,6 +1128,18 @@ function updateSyncBadge() {
 
 async function pushToCloud() {
   try {
+    // Safety: check if cloud has more equipment — if so, we're stale, sync first
+    const checkRes = await fetch('/api/appdata');
+    if (checkRes.ok) {
+      const cloudCheck = await checkRes.json();
+      const cloudEquipCount = (cloudCheck.equipment || []).length;
+      const localEquipCount = (db.equipment || []).length;
+      if (cloudEquipCount > localEquipCount) {
+        console.warn('[TechKitchen] Push bloqueado: nuvem tem mais equipamentos (' + cloudEquipCount + ' vs ' + localEquipCount + '). Sincronizando primeiro...');
+        await syncFromCloud();
+        return;
+      }
+    }
     await fetch('/api/appdata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
