@@ -812,6 +812,14 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
           <button class="btn btn-danger btn-sm" onclick="clearAll()">Limpar Tudo</button>
         </div>
 
+        <div class="section-title" style="margin-top:22px;">Backups na Nuvem</div>
+        <div class="io-card">
+          <h3>🔄 Restaurar Backup</h3>
+          <p>Os últimos 5 backups são criados automaticamente a cada hora. Restaure um backup caso seus dados sejam perdidos.</p>
+          <button class="btn btn-ghost" onclick="loadBackupList()" id="loadBackupsBtn">Ver backups disponíveis</button>
+          <div id="backupListEl" style="margin-top:12px;"></div>
+        </div>
+
         <div class="section-title" style="margin-top:22px;">Arquivos salvos</div>
         <div class="io-card">
           <h3>🗂 Gerenciar arquivos</h3>
@@ -1111,6 +1119,50 @@ async function pushToCloud() {
     });
   } catch (err) {
     console.warn('Não foi possível salvar na nuvem agora (ficou salvo neste aparelho):', err.message);
+  }
+}
+
+async function loadBackupList() {
+  const el = document.getElementById('backupListEl');
+  const btn = document.getElementById('loadBackupsBtn');
+  if (btn) { btn.textContent = '⏳ Carregando...'; btn.disabled = true; }
+  try {
+    const res = await fetch('/api/appdata?action=list_backups');
+    const list = await res.json();
+    if (!list || !list.length) {
+      el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhum backup encontrado ainda. Backups são criados automaticamente a cada hora de uso.</p>';
+      return;
+    }
+    el.innerHTML = list.map(b => {
+      const dt = b.savedAt ? new Date(b.savedAt).toLocaleString('pt-BR') : 'Data desconhecida';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-weight:600;font-size:14px;">🕐 ${dt}</div>
+          <div style="font-size:12px;color:var(--text-muted);">${b.equipCount} equipamento${b.equipCount !== 1 ? 's' : ''}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="restoreBackup('${b.slot}', '${dt}')">Restaurar</button>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    el.innerHTML = '<p style="color:var(--danger);">Erro ao carregar backups: ' + err.message + '</p>';
+  } finally {
+    if (btn) { btn.textContent = '🔄 Atualizar lista'; btn.disabled = false; }
+  }
+}
+
+async function restoreBackup(slot, label) {
+  if (!confirm('Restaurar o backup de "' + label + '"?\n\nIsso vai substituir os dados atuais pelo backup. Seus dados atuais serão salvos como backup antes da restauração.')) return;
+  showToast('⏳ Restaurando backup...', 'info');
+  try {
+    await fetch('/api/appdata?action=create_backup', { method: 'POST' });
+    const res = await fetch('/api/appdata?action=restore_backup&slot=' + slot, { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'status ' + res.status);
+    await syncFromCloud();
+    showToast('✅ Backup restaurado! ' + d.equipCount + ' equipamentos recuperados.', 'success');
+    loadBackupList();
+  } catch (err) {
+    showToast('Falha ao restaurar: ' + err.message, 'error');
   }
 }
 
