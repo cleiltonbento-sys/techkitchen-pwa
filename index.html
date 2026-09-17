@@ -2168,7 +2168,7 @@ async function renderExplodedArea(equip) {
       ${viewer}
       <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:12px;color:var(--muted);margin-right:auto">☁️ ${cloudFile.name || 'arquivo'}</span>
-        <button class="btn btn-ghost btn-sm" onclick="openPDF('${cloudFile.url}','${(cloudFile.name||\'\').replace(/\'/g,\"\\\'\")}')">Abrir</button>
+        <button class="btn btn-ghost btn-sm" onclick="openPDF(this.dataset.url,this.dataset.name)" data-url="${cloudFile.url}" data-name="${cloudFile.name||''}">Abrir</button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer">🔄 Substituir
           <input type="file" accept="application/pdf" style="display:none;" onchange="handleExplodedUpload(event,'${equip.id}')">
         </label>
@@ -2207,7 +2207,7 @@ async function renderExplodedArea(equip) {
     ${viewer}
     <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:12px;color:var(--muted);margin-right:auto">💾 Local: ${rec.name || 'arquivo'} · ${humanSize(rec.size)}</span>
-      <button class="btn btn-ghost btn-sm" onclick="openPDF('${_explodedURL}','${(rec.name||\'PDF\').replace(/\'/g,\"\\\'\")}')">Abrir</button>
+      <button class="btn btn-ghost btn-sm" onclick="openPDF(this.dataset.url,this.dataset.name)" data-url="${_explodedURL}" data-name="${rec.name||'PDF'}">Abrir</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadExploded('${equip.id}')">⬇ Baixar</button>
       <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload('${equip.id}')">Trocar</button>
       <button class="btn btn-danger btn-sm" onclick="removeExploded('${equip.id}')">🗑 Excluir</button>
@@ -2443,7 +2443,7 @@ function renderTechDocsUI(equip, key) {
             <div class="slot-label">${slot.label}</div>
             ${files.map(f => `
               <div class="techdoc-file">
-                ${f.url ? `<a href="javascript:void(0)" onclick="openPDF('${f.url}','${(f.name||\'\').replace(/\'/g,\"\\\'\")} ')" title="${f.name}" style="cursor:pointer">${f.name}</a>` : `<span title="${f.name}">${f.name}</span>`}
+                ${f.url ? `<a href="javascript:void(0)" onclick="openPDF(this.dataset.url,this.dataset.name)" data-url="${f.url}" data-name="${f.name||''}" title="${f.name}" style="cursor:pointer">${f.name}</a>` : `<span title="${f.name}">${f.name}</span>`}
                 <span class="rm" onclick="removeTechDoc('${key}','${slot.key}','${f.id || ''}')" title="Remover">🗑</span>
               </div>
             `).join('')}
