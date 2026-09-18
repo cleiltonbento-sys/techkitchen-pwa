@@ -300,6 +300,9 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   .sidebar-brands::-webkit-scrollbar { width: 4px; }
   .sidebar-brands::-webkit-scrollbar-track { background: transparent; }
   .sidebar-brands::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar-add-brand { padding: 8px 10px; border-top: 1px solid var(--border); }
+  .btn-add-brand { width:100%; padding:7px 10px; background:transparent; border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; letter-spacing:0.3px; }
+  .btn-add-brand:hover { border-color:var(--accent); color:var(--accent); background:rgba(249,115,22,0.06); }
 
   .brand-group { margin-bottom: 2px; }
   .brand-header {
@@ -717,7 +720,31 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
       </div>
     </div>
     <div class="sidebar-brands" id="sidebarBrands"></div>
+    <div class="sidebar-add-brand">
+      <button class="btn-add-brand" onclick="openAddBrandModal()" title="Adicionar nova marca">＋ Nova Marca</button>
+    </div>
   </aside>
+
+  <!-- MODAL NOVA MARCA -->
+  <div id="addBrandModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAddBrandModal()">
+    <div class="modal-box" style="max-width:360px;">
+      <div class="modal-header">
+        <h2>🏷 Nova Marca</h2>
+        <button class="modal-close" onclick="closeAddBrandModal()">✕</button>
+      </div>
+      <div style="padding:16px 20px 20px;">
+        <label style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:6px;">Nome da marca</label>
+        <input type="text" id="quickBrandName" placeholder="Ex: Electrolux, Tramontina..." autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:14px;outline:none;"
+          onkeydown="if(event.key==='Enter')addBrandFromModal()">
+        <div id="quickBrandError" style="color:var(--danger);font-size:12px;margin-top:6px;display:none;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button class="btn btn-ghost" style="flex:1;" onclick="closeAddBrandModal()">Cancelar</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="addBrandFromModal()">Adicionar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- MAIN -->
   <main class="main">
@@ -1943,6 +1970,39 @@ function addBrand() {
   input.value = '';
   renderBrandManageList();
   showToast('Marca adicionada! ✅', 'success');
+}
+
+function openAddBrandModal() {
+  const modal = document.getElementById('addBrandModal');
+  const inp = document.getElementById('quickBrandName');
+  const err = document.getElementById('quickBrandError');
+  inp.value = '';
+  err.style.display = 'none';
+  modal.style.display = 'flex';
+  setTimeout(() => inp.focus(), 80);
+}
+
+function closeAddBrandModal() {
+  document.getElementById('addBrandModal').style.display = 'none';
+}
+
+function addBrandFromModal() {
+  const inp = document.getElementById('quickBrandName');
+  const err = document.getElementById('quickBrandError');
+  const name = inp.value.trim();
+  err.style.display = 'none';
+  if (!name) { err.textContent = 'Informe o nome da marca.'; err.style.display = 'block'; return; }
+  if (db.brands.some(b => b.name.toLowerCase() === name.toLowerCase())) {
+    err.textContent = 'Essa marca já está cadastrada.'; err.style.display = 'block'; return;
+  }
+  const color = BRAND_COLOR_PALETTE[db.brands.length % BRAND_COLOR_PALETTE.length];
+  const abbr = name.replace(/[^A-Za-zÀ-ú]/g, '').substring(0, 2).toUpperCase() || '??';
+  db.brands.push({ id: 'b' + Date.now(), name, color, bg: color, abbr });
+  saveDB();
+  renderSidebar();
+  if (document.getElementById('brandManageList')) renderBrandManageList();
+  closeAddBrandModal();
+  showToast(`Marca "${name}" adicionada! ✅`, 'success');
 }
 
 function deleteBrand(brandId) {
